@@ -6,14 +6,14 @@ require "open3"
 require "pathname"
 require "yaml"
 
-begin
-  require "readline"
-  HAS_READLINE = true
-rescue LoadError
-  HAS_READLINE = false
-end
-
 module Ctree
+  begin
+    require "readline"
+    HAS_READLINE = true
+  rescue LoadError
+    HAS_READLINE = false
+  end
+
   PROG = "ctree"
   NAME_PATTERN = /\A[a-z0-9][a-z0-9_-]*\z/.freeze
   # Branch names are more permissive than the worktree/compose name (which
@@ -195,24 +195,6 @@ module Ctree
 
     def with_spinner(msg, &block)
       Ctree.ui_backend.spin(msg, &block)
-    end
-
-    def render_progress(current, total, start_time, spinner)
-      return unless $stdout.tty?
-      elapsed = (Time.now - start_time).to_i
-      if total && total > 0
-        pct = [(current.to_f / total * 100).round, 100].min
-        bar_width = 24
-        filled = [[bar_width * pct / 100, 1].max, bar_width].min
-        bar = ("=" * filled).ljust(bar_width)
-        msg = format("[%s] (%s) %3d%%  %s/%s  %ds",
-                     bar, spinner, pct,
-                     Sizes.human(current), Sizes.human(total), elapsed)
-      else
-        msg = format("%s  (%s)  %ds", Sizes.human(current), spinner, elapsed)
-      end
-      print "\r\e[K#{msg}"
-      $stdout.flush
     end
   end
 
