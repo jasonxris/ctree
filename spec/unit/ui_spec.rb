@@ -40,8 +40,8 @@ RSpec.describe Ctree::UI do
         yield ->(percent) { calls << [:progress_update, percent] }
       end
 
-      def read_line(prompt)
-        calls << [:read_line, prompt]
+      def read_line(prompt, prefixed: true)
+        calls << [:read_line, prompt, prefixed]
         "typed"
       end
     end.new
@@ -86,7 +86,7 @@ RSpec.describe Ctree::UI do
   it "routes Prompt.read_line through the backend" do
     Ctree.ui_backend = backend
     expect(Ctree::Prompt.read_line("? ")).to eq("typed")
-    expect(backend.calls).to eq([[:read_line, "? "]])
+    expect(backend.calls).to eq([[:read_line, "? ", true]])
   end
 
   it "routes Log.line through the backend, defaulting to an empty line" do

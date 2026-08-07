@@ -46,7 +46,7 @@ module Ctree
           has_changes = !dirty_out.strip.empty?
 
           if has_changes
-            raw = Prompt.read_line("[#{PROG}] stash uncommitted changes and switch to master? [Y/n]: ")
+            raw = Prompt.read_line("stash uncommitted changes and switch to master? [Y/n]: ")
             answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
             if answer.empty? || answer == "y" || answer == "yes"
               _, stash_err, stash_st = Sh.capture3("git", "-C", source_root.to_s, "stash")
@@ -59,7 +59,7 @@ module Ctree
               Log.die "please checkout master in the source repo and re-run ctree"
             end
           else
-            raw = Prompt.read_line("[#{PROG}] switch source to master branch? [Y/n]: ")
+            raw = Prompt.read_line("switch source to master branch? [Y/n]: ")
             answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
             if answer.empty? || answer == "y" || answer == "yes"
               _, co_err, co_st = Sh.capture3("git", "-C", source_root.to_s, "checkout", "master")
@@ -112,7 +112,7 @@ module Ctree
       Log.die "docker ps failed" unless status.success?
       unless ps_out.strip.empty?
         Log.warn_ "source compose stack has running containers"
-        raw = Prompt.read_line("[#{PROG}] stop source containers before creating worktree? [Y/n]: ")
+        raw = Prompt.read_line("stop source containers before creating worktree? [Y/n]: ")
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         if answer.empty? || answer == "y" || answer == "yes"
           _, err, st = Spinner.with_spinner("stopping source compose stack") do
@@ -628,7 +628,7 @@ module Ctree
           Log.warn_ "branch '#{branch}' is #{behind} commit(s) behind master"
           Log.warn_ "its lockfiles may not match the replicated gem/package"
           Log.warn_ "volumes, which can prevent the stack from booting"
-          raw = Prompt.read_line("[#{PROG}] rebase '#{branch}' onto master now? [Y/n]: ")
+          raw = Prompt.read_line("rebase '#{branch}' onto master now? [Y/n]: ")
           answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
           if answer.empty? || answer == "y" || answer == "yes"
             _, _, rb_st = Spinner.with_spinner("rebasing #{branch} onto master") do

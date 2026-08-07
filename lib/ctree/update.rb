@@ -75,7 +75,7 @@ module Ctree
       default_branch = detect_default_branch(source_root)
       if !src_branch.empty? && src_branch != default_branch
         Log.warn_ "source repo is on branch '#{src_branch}' (not '#{default_branch}')"
-        raw = Prompt.read_line("[#{PROG}] proceed with update? [y/N]: ")
+        raw = Prompt.read_line("proceed with update? [y/N]: ")
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         unless answer == "y" || answer == "yes"
           Log.info "update aborted"
@@ -91,7 +91,7 @@ module Ctree
       Log.die "docker ps failed" unless src_ps_st.success?
       unless src_ps_out.strip.empty?
         Log.warn_ "source compose stack has running containers"
-        raw = Prompt.read_line("[#{PROG}] stop source containers before updating? [Y/n]: ")
+        raw = Prompt.read_line("stop source containers before updating? [Y/n]: ")
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         if answer.empty? || answer == "y" || answer == "yes"
           _, err, st = Spinner.with_spinner("stopping source compose stack") do

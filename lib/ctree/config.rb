@@ -52,7 +52,7 @@ module Ctree
       dir = top / ".ctree"
       target = dir / "config.yml"
       if target.exist?
-        raw = Prompt.read_line("[#{PROG}] Config file exists: #{target}. Reset it? [y/N]: ")
+        raw = Prompt.read_line("Config file exists: #{target}. Reset it? [y/N]: ")
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         unless answer == "y" || answer == "yes"
           Log.info "keeping existing config"
@@ -83,7 +83,7 @@ module Ctree
       Log.line "  #{target}"
       Log.line "  #{dir}/  (if empty after removing the config)"
       Log.line
-      raw = Prompt.read_line("[#{PROG}] Type 'yes' to confirm removal: ")
+      raw = Prompt.read_line("Type 'yes' to confirm removal: ")
       answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip
       unless answer == "yes"
         Log.info "aborted — config file kept"

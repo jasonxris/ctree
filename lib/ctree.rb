@@ -213,13 +213,13 @@ module Ctree
   module Prompt
     module_function
 
-    def read_line(prompt)
-      Ctree.ui_backend.read_line(prompt)
+    def read_line(prompt, prefixed: true)
+      Ctree.ui_backend.read_line(prompt, prefixed: prefixed)
     end
 
     def for_db_port_change(current_port)
       loop do
-        prompt = "[#{PROG}] DB_PORT=#{current_port}. Press enter to keep, or type a new port: "
+        prompt = "DB_PORT=#{current_port}. Press enter to keep, or type a new port: "
         raw = read_line(prompt)
         return current_port if raw.nil?
 
@@ -248,7 +248,7 @@ module Ctree
         pad = worktree_values.keys.map(&:length).max
         worktree_values.each { |wt, val| Log.line "  #{wt.ljust(pad)}: #{val}" }
       end
-      raw = read_line("  (enter to keep, or type a new value): ")
+      raw = read_line("  (enter to keep, or type a new value): ", prefixed: false)
       return current_value if raw.nil?
       answer = raw.gsub(/[\x00-\x1f\x7f]/, "").strip
       answer.empty? ? current_value : answer

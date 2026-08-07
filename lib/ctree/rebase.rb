@@ -55,7 +55,7 @@ module Ctree
       unless dirty.empty?
         Log.warn_ "uncommitted changes in:"
         dirty.each { |d| Log.warn_ "  #{d}" }
-        raw = Prompt.read_line("[#{PROG}] proceed anyway? [y/N]: ")
+        raw = Prompt.read_line("proceed anyway? [y/N]: ")
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         unless answer == "y" || answer == "yes"
           Log.info "rebase aborted"

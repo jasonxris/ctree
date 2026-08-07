@@ -157,7 +157,7 @@ module Ctree
       Log.line "  Source project (#{source_root}) will NOT be touched."
       Log.line
 
-      raw = Prompt.read_line("[#{PROG}] Type 'yes' to confirm deletion of '#{name}': ")
+      raw = Prompt.read_line("Type 'yes' to confirm deletion of '#{name}': ")
       answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip
       unless answer == "yes"
         Log.warn_ "aborted: confirmation not given (received #{answer.inspect}, expected 'yes'). No changes made."

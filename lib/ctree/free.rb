@@ -36,7 +36,7 @@ module Ctree
         return
       end
 
-      raw = Prompt.read_line("[#{PROG}] Free this worktree? [Y/n]: ")
+      raw = Prompt.read_line("Free this worktree? [Y/n]: ")
       answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
       unless answer.empty? || answer == "y" || answer == "yes"
         Log.info "aborted"

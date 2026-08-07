@@ -99,11 +99,12 @@ module Ctree
         result
       end
 
-      def read_line(prompt)
+      def read_line(prompt, prefixed: true)
+        full_prompt = prefixed ? "[#{PROG}] #{prompt}" : prompt
         if HAS_READLINE
-          Readline.readline(prompt, false)
+          Readline.readline(full_prompt, false)
         else
-          print prompt
+          print full_prompt
           $stdout.flush
           line = $stdin.gets
           line&.chomp

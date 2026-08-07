@@ -53,7 +53,7 @@ module Ctree
             Log.line "  no used worktrees"
           end
           Log.line
-          return
+          next
         end
 
         name_width = visible.map { |e| File.basename(e[:path]).length }.max.to_i
