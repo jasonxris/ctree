@@ -270,6 +270,26 @@ module Ctree
           sync_file_results << [rel, :missing, "source not found"]
         end
       end
+
+      unless override_rel.empty?
+        override_source = source_root / override_rel
+        override_target = target_path / override_rel
+        if !override_target.file? && override_source.file?
+          FileUtils.cp(override_source.to_s, override_target.to_s)
+          Log.info "copied #{override_rel} from source"
+          updated_file_count += 1
+          sync_file_results << [override_rel, :updated, "copied from source"]
+
+          worktree_env_path = target_path / env_filename
+          compose_file_parts = EnvFile.parse(worktree_env_path.to_s)["COMPOSE_FILE"].to_s
+                                      .split(":").map(&:strip).reject(&:empty?)
+          unless compose_file_parts.include?(override_rel)
+            EnvFile.upsert(worktree_env_path.to_s, "COMPOSE_FILE", (compose_file_parts + [override_rel]).join(":"))
+            Log.info "appended #{override_rel} to COMPOSE_FILE in #{env_filename}"
+          end
+        end
+      end
+
       Log.info "updated #{updated_file_count} file#{updated_file_count == 1 ? "" : "s"}" if updated_file_count > 0 && !Log.debug?
 
       failed = sync_results.any? { |_, _, st, _| st == :failed } ||
