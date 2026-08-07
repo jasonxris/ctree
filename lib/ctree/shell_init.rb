@@ -19,7 +19,7 @@ module Ctree
         warn "#{PROG} shell-init is meant to be evaluated by your shell, not run directly."
         warn "Add this line to your ~/.zshrc or ~/.bashrc:"
         warn %(  eval "$(#{PROG} shell-init)")
-        exit 1
+        raise ExitStatus.new(1)
       end
       puts shell_function(PROG, binary_path)
     end

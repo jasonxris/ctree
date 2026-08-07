@@ -58,7 +58,7 @@ module Ctree
 
       tgt_env = EnvFile.parse(tgt_env_path.to_s)
       tgt_env.each { |k, v| puts "#{k}=#{v}" }
-      exit 0
+      raise ExitStatus.new(0)
     end
 
     def cmd_check(target_path, source_root, config)
@@ -77,11 +77,11 @@ module Ctree
 
       if missing.empty? && extra.empty?
         Log.info "env is in sync"
-        exit 0
+        raise ExitStatus.new(0)
       else
         missing.each { |k| puts "[missing] #{k}" }
         extra.each   { |k| puts "[extra] #{k}" }
-        exit 1
+        raise ExitStatus.new(1)
       end
     end
 
@@ -102,7 +102,7 @@ module Ctree
 
       if missing.empty? && orphaned.empty?
         Log.info "env is in sync; nothing to fix"
-        exit 0
+        raise ExitStatus.new(0)
       end
 
       missing.each do |key|
@@ -117,7 +117,7 @@ module Ctree
       end
 
       Log.info "updated #{env_filename}"
-      exit 0
+      raise ExitStatus.new(0)
     end
 
     private_class_method :resolve_worktree!, :missing_keys, :ctree_managed_keys,

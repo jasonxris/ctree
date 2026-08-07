@@ -178,7 +178,7 @@ module Ctree
 
     def usage_and_exit
       puts USAGE
-      exit 1
+      raise ExitStatus.new(1)
     end
 
     # Worktree names double as Docker Compose project names, which Docker

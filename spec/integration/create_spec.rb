@@ -70,7 +70,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     expect(sibling).to be_directory
@@ -102,7 +102,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     %w[web webpack jobs].each do |service|
@@ -136,7 +136,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       .and output(/could not list compose services/).to_stderr
 
     sibling = @work.parent / "wt1"
@@ -160,7 +160,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     env_content = (sibling / ".env").read
@@ -185,7 +185,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       .and output(/updated \.env\.custom/).to_stdout
 
     sibling = @work.parent / "wt1"
@@ -225,7 +225,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     override = YAML.safe_load((sibling / "docker-compose.local.ctree.yml").read)
@@ -254,7 +254,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       .and output(/docker-compose\.local\.ctree\.yml not found in worktree.*yarn-cache/).to_stderr
 
     system("git", "-C", @work.to_s, "worktree", "remove", "--force",
@@ -289,7 +289,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       .and output(/source volume src_missing-vol not found.*missing-vol will not be shared/).to_stderr
 
     sibling = @work.parent / "wt1"
@@ -320,7 +320,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       .and output(/no source volumes found for share_volumes.*worktree will use its own isolated copies/).to_stderr
 
     system("git", "-C", @work.to_s, "worktree", "remove", "--force",
@@ -355,7 +355,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     override_content = (sibling / "docker-compose.local.ctree.yml").read
@@ -384,7 +384,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "feature-branch"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     expect(sibling / "extra.rb").not_to exist
@@ -410,7 +410,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     expect(sibling / "node_modules").not_to exist
@@ -436,7 +436,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     expect(sibling / "secrets.yml").not_to exist
@@ -472,7 +472,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     expect((sibling / "lockfile.test").read).to eq("source-version")
@@ -519,7 +519,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       .and output(/\[empty {2}\].*wt1_log.*\(empty volume\)/).to_stdout
 
     system("git", "-C", @work.to_s, "worktree", "remove", "--force",
@@ -550,7 +550,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "stale"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       .and output(/branch 'stale' is 1 commit\(s\) behind master/).to_stderr
 
     sibling = @work.parent / "wt1"
@@ -576,7 +576,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt1", "stale"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
     sibling = @work.parent / "wt1"
     expect(sibling / "newer.rb").not_to exist
@@ -596,7 +596,7 @@ RSpec.describe "Ctree::CLI create" do
 
       expect {
         Ctree::CLI.run(["create", "wt1", "wt1"])
-      }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+      }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
       system("git", "-C", @work.to_s, "worktree", "remove", "--force", (@work.parent / "wt1").to_s,
              out: File::NULL, err: File::NULL)
@@ -630,7 +630,7 @@ RSpec.describe "Ctree::CLI create" do
 
       expect {
         Ctree::CLI.run(["create", "wt1", "wt1"])
-      }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+      }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
       current = `git -C #{@work} rev-parse --abbrev-ref HEAD`.strip
       expect(current).to eq("master")
@@ -649,7 +649,7 @@ RSpec.describe "Ctree::CLI create" do
 
       expect {
         Ctree::CLI.run(["create", "wt1", "wt1"])
-      }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+      }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
 
       current = `git -C #{@work} rev-parse --abbrev-ref HEAD`.strip
       expect(current).to eq("master")

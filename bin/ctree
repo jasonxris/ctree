@@ -6,6 +6,8 @@ require "ctree"
 
 begin
   Ctree::CLI.run(ARGV)
+rescue Ctree::ExitStatus => status
+  exit status.exit_code
 rescue Ctree::Error => error
   warn "[#{Ctree::PROG}] ERROR: #{error.message}"
   exit error.exit_code

@@ -27,7 +27,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar")
       write_env(@target / ".env", "FOO" => "bar", "BAZ" => "qux")
       expect { Ctree::EnvCmd.run("list") }
-        .to raise_error(SystemExit)
+        .to raise_error(Ctree::ExitStatus)
         .and output(/BAZ=qux/).to_stdout
     end
 
@@ -35,7 +35,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar", "EXTRA" => "x")
       write_env(@target / ".env", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("list") }
-        .to raise_error(SystemExit)
+        .to raise_error(Ctree::ExitStatus)
         .and output(/\AFOO=bar\n\z/).to_stdout
     end
 
@@ -57,7 +57,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar")
       write_env(@target / ".env", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("check") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/in sync/).to_stdout
     end
 
@@ -65,7 +65,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar", "MISSING_KEY" => "x")
       write_env(@target / ".env", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("check") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(1) }
         .and output(/\[missing\] MISSING_KEY/).to_stdout
     end
 
@@ -73,7 +73,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar", "SKIP_ME" => "x")
       write_env(@target / ".env", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("check") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(1) }
         .and output(/\[missing\] SKIP_ME/).to_stdout
     end
 
@@ -81,7 +81,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar")
       write_env(@target / ".env", "FOO" => "bar", "EXTRA_KEY" => "x")
       expect { Ctree::EnvCmd.run("check") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(1) }
         .and output(/\[extra\] EXTRA_KEY/).to_stdout
     end
 
@@ -91,7 +91,7 @@ RSpec.describe Ctree::EnvCmd do
                                   "COMPOSE_PROJECT_NAME" => "example-two",
                                   "HOST_NAME" => "example-two")
       expect { Ctree::EnvCmd.run("check") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/in sync/).to_stdout
     end
 
@@ -99,7 +99,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar")
       write_env(@target / ".env", "FOO" => "bar", "SKIP_ME" => "x")
       expect { Ctree::EnvCmd.run("check") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/in sync/).to_stdout
     end
   end
@@ -109,7 +109,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env", "FOO" => "bar")
       write_env(@target / ".env", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("fix") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/nothing to fix/).to_stdout
     end
 
@@ -118,7 +118,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", "FOO" => "wt_foo")
       expect(Ctree::Prompt).not_to receive(:for_env_var_change)
       expect { Ctree::EnvCmd.run("fix") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
     end
 
     it "prompts for missing keys with source value as default" do
@@ -126,7 +126,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", {})
       allow(Ctree::Prompt).to receive(:for_env_var_change)
         .with("NEW_KEY", "src_val").and_return("src_val")
-      expect { Ctree::EnvCmd.run("fix") }.to raise_error(SystemExit)
+      expect { Ctree::EnvCmd.run("fix") }.to raise_error(Ctree::ExitStatus)
       expect(Ctree::EnvFile.parse((@target / ".env").to_s)["NEW_KEY"]).to eq("src_val")
     end
 
@@ -135,7 +135,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", {})
       allow(Ctree::Prompt).to receive(:for_env_var_change)
         .with("NEW_KEY", "src_val").and_return("my_val")
-      expect { Ctree::EnvCmd.run("fix") }.to raise_error(SystemExit)
+      expect { Ctree::EnvCmd.run("fix") }.to raise_error(Ctree::ExitStatus)
       expect(Ctree::EnvFile.parse((@target / ".env").to_s)["NEW_KEY"]).to eq("my_val")
     end
 
@@ -144,7 +144,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", "OLD_KEY" => "old_val")
       allow(Ctree::Prompt).to receive(:read_line)
         .with(/OLD_KEY.*delete.*\[y\/N\]/i).and_return("y")
-      expect { Ctree::EnvCmd.run("fix") }.to raise_error(SystemExit)
+      expect { Ctree::EnvCmd.run("fix") }.to raise_error(Ctree::ExitStatus)
       expect(Ctree::EnvFile.parse((@target / ".env").to_s).key?("OLD_KEY")).to be false
     end
 
@@ -153,7 +153,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", "OLD_KEY" => "old_val")
       allow(Ctree::Prompt).to receive(:read_line)
         .with(/OLD_KEY.*delete.*\[y\/N\]/i).and_return("n")
-      expect { Ctree::EnvCmd.run("fix") }.to raise_error(SystemExit)
+      expect { Ctree::EnvCmd.run("fix") }.to raise_error(Ctree::ExitStatus)
       expect(Ctree::EnvFile.parse((@target / ".env").to_s)["OLD_KEY"]).to eq("old_val")
     end
 
@@ -164,7 +164,7 @@ RSpec.describe Ctree::EnvCmd do
         .with("FOO", "bar").and_return("bar")
       allow(Ctree::Prompt).to receive(:for_env_var_change)
         .with("SKIP_ME", "x").and_return("x")
-      expect { Ctree::EnvCmd.run("fix") }.to raise_error(SystemExit)
+      expect { Ctree::EnvCmd.run("fix") }.to raise_error(Ctree::ExitStatus)
     end
 
     it "does not offer to delete orphaned skip_env_keys" do
@@ -172,7 +172,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", "SKIP_ME" => "x")
       expect(Ctree::Prompt).not_to receive(:read_line)
       expect { Ctree::EnvCmd.run("fix") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/nothing to fix/).to_stdout
     end
 
@@ -181,7 +181,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", "COMPOSE_PROJECT_NAME" => "example-two", "HOST_NAME" => "example-two")
       expect(Ctree::Prompt).not_to receive(:read_line)
       expect { Ctree::EnvCmd.run("fix") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/nothing to fix/).to_stdout
     end
 
@@ -193,7 +193,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env", "HOST_NAME_SUFFIX" => "docker")
       expect(Ctree::Prompt).not_to receive(:read_line)
       expect { Ctree::EnvCmd.run("fix") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/nothing to fix/).to_stdout
     end
   end
@@ -209,7 +209,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env.custom", "FOO" => "bar")
       write_env(@target / ".env.custom", "FOO" => "bar", "BAZ" => "qux")
       expect { Ctree::EnvCmd.run("list") }
-        .to raise_error(SystemExit)
+        .to raise_error(Ctree::ExitStatus)
         .and output(/BAZ=qux/).to_stdout
     end
 
@@ -222,7 +222,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@source / ".env.custom", "FOO" => "bar", "NEW_KEY" => "1")
       write_env(@target / ".env.custom", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("check") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(1) }
         .and output(/\[missing\] NEW_KEY/).to_stdout
     end
 
@@ -231,7 +231,7 @@ RSpec.describe Ctree::EnvCmd do
       write_env(@target / ".env.custom", "FOO" => "bar")
       allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
       expect { Ctree::EnvCmd.run("fix") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
       expect((@target / ".env.custom").read).to include("NEW_KEY=1")
     end
   end

@@ -90,7 +90,7 @@ RSpec.describe Ctree::Free do
 
     it "exits cleanly when user answers n" do
       stub_run(prompt_answer: "n")
-      expect { described_class.run }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+      expect { described_class.run }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
     end
 
     it "exits early without prompting when already on a free branch" do
@@ -99,7 +99,7 @@ RSpec.describe Ctree::Free do
         .with("git", "-C", @target.to_s, "rev-parse", "--abbrev-ref", "HEAD")
         .and_return(["FREE-005", "", fake_status(true)])
       expect { described_class.run }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
         .and output(/already on a free branch \(FREE-005\)/).to_stdout
       expect(Ctree::Prompt).not_to have_received(:read_line)
       expect(Ctree::Sh).not_to have_received(:capture3)

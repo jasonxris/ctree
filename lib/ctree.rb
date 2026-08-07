@@ -32,6 +32,15 @@ module Ctree
     end
   end
 
+  class ExitStatus < StandardError
+    attr_reader :exit_code
+
+    def initialize(exit_code)
+      super("exit status #{exit_code}")
+      @exit_code = exit_code
+    end
+  end
+
   class << self
     attr_writer :ui_backend
 

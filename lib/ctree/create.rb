@@ -670,7 +670,7 @@ module Ctree
         end
       end
 
-      exit(any_failed ? 2 : 0)
+      raise ExitStatus.new(any_failed ? 2 : 0)
     end
   end
 end

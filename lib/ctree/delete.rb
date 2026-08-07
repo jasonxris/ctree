@@ -110,7 +110,7 @@ module Ctree
       nothing_to_do = vols.empty? && containers.empty? && tagged_images.empty? && !worktree_registered && !target_path.exist?
       if nothing_to_do
         Log.info "nothing to remove for '#{name}' — no worktree, branch, containers, or volumes found"
-        exit 0
+        raise ExitStatus.new(0)
       end
 
       # Show the user exactly what will happen.
@@ -161,7 +161,7 @@ module Ctree
       answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip
       unless answer == "yes"
         warn "[#{PROG}] aborted: confirmation not given (received #{answer.inspect}, expected 'yes'). No changes made."
-        exit 1
+        raise ExitStatus.new(1)
       end
 
       # === execute ===
@@ -290,10 +290,10 @@ module Ctree
       puts
       if failures.empty?
         Log.info "deletion complete for '#{name}'"
-        exit 0
+        raise ExitStatus.new(0)
       else
         Log.warn_ "removal completed with failures: #{failures.join(", ")}"
-        exit 2
+        raise ExitStatus.new(2)
       end
     end
 

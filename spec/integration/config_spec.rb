@@ -109,7 +109,7 @@ RSpec.describe "Ctree::CLI config add / remove" do
   it "shows usage when given an unknown flag" do
     expect {
       Ctree::CLI.run(["config", "--bogus"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(1) }
       .and output(/Usage:/).to_stdout
   end
 end
@@ -180,7 +180,7 @@ RSpec.describe "Ctree::CLI config list (prints local config)" do
   it "rejects an unknown config flag" do
     expect {
       Ctree::CLI.run(["config", "--print"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+    }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(1) }
       .and output(/Usage:/).to_stdout
   end
 end

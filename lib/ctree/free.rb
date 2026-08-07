@@ -33,14 +33,14 @@ module Ctree
       current_branch = current_branch_out.strip
       if !prefix.empty? && current_branch.start_with?(prefix)
         Log.info "already on a free branch (#{current_branch}); nothing to do"
-        exit 0
+        raise ExitStatus.new(0)
       end
 
       raw = Prompt.read_line("[#{PROG}] Free this worktree? [Y/n]: ")
       answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
       unless answer.empty? || answer == "y" || answer == "yes"
         Log.info "aborted"
-        exit 0
+        raise ExitStatus.new(0)
       end
 
       branches_out, _, branches_st = Sh.capture3("git", "-C", source_root.to_s, "branch", "--list", "#{prefix}*")

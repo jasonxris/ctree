@@ -31,7 +31,7 @@ RSpec.describe Ctree::ShellInit do
     it "prints an install hint and exits non-zero when run interactively" do
       allow($stdout).to receive(:tty?).and_return(true)
       expect do
-        expect { described_class.run }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        expect { described_class.run }.to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(1) }
       end.to output(/meant to be evaluated by your shell/).to_stderr
     end
   end

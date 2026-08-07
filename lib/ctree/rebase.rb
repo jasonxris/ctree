@@ -59,7 +59,7 @@ module Ctree
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         unless answer == "y" || answer == "yes"
           Log.info "rebase aborted"
-          exit 1
+          raise ExitStatus.new(1)
         end
       end
 
@@ -123,7 +123,7 @@ module Ctree
       end
 
       failed = results.any? { |st, _, _| st == :failed }
-      exit(failed ? 2 : 0)
+      raise ExitStatus.new(failed ? 2 : 0)
     end
 
     # Rebases current_branch (checked out at target_path) onto local master.

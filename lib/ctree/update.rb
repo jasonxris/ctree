@@ -67,7 +67,7 @@ module Ctree
       docker_ok = Sh.system("docker", "info", out: File::NULL, err: File::NULL)
       unless docker_ok
         Log.warn_ "docker not reachable — skipping update"
-        exit 1
+        raise ExitStatus.new(1)
       end
 
       src_branch_out, _, _ = Sh.capture3("git", "-C", source_root.to_s, "rev-parse", "--abbrev-ref", "HEAD")
@@ -79,7 +79,7 @@ module Ctree
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         unless answer == "y" || answer == "yes"
           Log.info "update aborted"
-          exit 1
+          raise ExitStatus.new(1)
         end
       end
 
@@ -104,7 +104,7 @@ module Ctree
           end
         else
           Log.warn_ "source containers still running; aborting"
-          exit 1
+          raise ExitStatus.new(1)
         end
       end
 
@@ -331,7 +331,7 @@ module Ctree
         end
       end
 
-      exit(failed ? 2 : 0)
+      raise ExitStatus.new(failed ? 2 : 0)
     end
 
     def detect_default_branch(root)
