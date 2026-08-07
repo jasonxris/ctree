@@ -32,6 +32,14 @@ module Ctree
     end
   end
 
+  class << self
+    attr_writer :ui_backend
+
+    def ui_backend
+      @ui_backend ||= UI::PlainBackend.new
+    end
+  end
+
   module Log
     @debug = false
 
@@ -46,15 +54,15 @@ module Ctree
     end
 
     def debug(msg)
-      puts "[#{PROG}] #{msg}" if @debug
+      Ctree.ui_backend.debug(msg) if @debug
     end
 
     def info(msg)
-      puts "[#{PROG}] #{msg}"
+      Ctree.ui_backend.info(msg)
     end
 
     def warn_(msg)
-      warn "[#{PROG}] WARNING: #{msg}"
+      Ctree.ui_backend.warn(msg)
     end
 
     def die(msg, code = 1)
@@ -176,43 +184,8 @@ module Ctree
   module Spinner
     module_function
 
-    def with_spinner(msg)
-      prefix = "[#{PROG}] #{msg}"
-      unless $stdout.tty?
-        puts prefix
-        return yield
-      end
-
-      start_time = Time.now
-      state_mutex = Mutex.new
-      done = false
-      result = nil
-
-      spinner_thread = Thread.new do
-        spinner_idx = 0
-        until state_mutex.synchronize { done }
-          elapsed = (Time.now - start_time).to_i
-          line = format("%s (%s) %ds",
-                        prefix,
-                        SPINNER_FRAMES[spinner_idx % SPINNER_FRAMES.length],
-                        elapsed)
-          print "\r\e[K#{line}"
-          $stdout.flush
-          spinner_idx += 1
-          sleep 0.1
-        end
-      end
-
-      begin
-        result = yield
-      ensure
-        state_mutex.synchronize { done = true }
-        spinner_thread.join
-        print "\r\e[K"
-        $stdout.flush
-      end
-
-      result
+    def with_spinner(msg, &block)
+      Ctree.ui_backend.spin(msg, &block)
     end
 
     def render_progress(current, total, start_time, spinner)
@@ -238,14 +211,7 @@ module Ctree
     module_function
 
     def read_line(prompt)
-      if HAS_READLINE
-        Readline.readline(prompt, false)
-      else
-        print prompt
-        $stdout.flush
-        line = $stdin.gets
-        line&.chomp
-      end
+      Ctree.ui_backend.read_line(prompt)
     end
 
     def for_db_port_change(current_port)
@@ -702,6 +668,7 @@ module Ctree
 end
 
 require_relative "ctree/version"
+require_relative "ctree/ui"
 require_relative "ctree/config"
 require_relative "ctree/cli"
 require_relative "ctree/create"
