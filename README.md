@@ -452,6 +452,57 @@ in worktrees, never in the source.
 - All worktrees and the source share the same Traefik network without conflicts because
   each `Host()` rule resolves to a distinct value.
 
+## Embedding ctree as a library
+
+ctree is designed to be embedded by another CLI (for example an
+[inst-cli](https://gerrit.instructure.com) plugin exposing it as
+`inst canvas tree`). The contract:
+
+**Entry points.** `require "ctree"`, then call the command modules
+directly — `Ctree::Create.run(name:, branch:)`, `Ctree::Delete.run(name:)`,
+`Ctree::List.run(filter:)`, `Ctree::Update.run`, `Ctree::Rebase.run`,
+`Ctree::Free.run`, `Ctree::EnvCmd.run(subcommand)`,
+`Ctree::ComposeConfigCmd.run(subcommand)`, and the `Ctree::Config`
+module functions. `Ctree::CLI.run(argv)` exists for the standalone
+binary; embedders should call the modules and do their own argument
+parsing. Most commands assume `Dir.pwd` is the relevant repo top-level
+and validate it themselves.
+
+**Exceptions, never exits.** Nothing under `lib/` calls `Kernel#exit`.
+Failures with a message raise `Ctree::Error` (carrying `exit_code`);
+silent non-zero status exits (check discrepancies, partial failures)
+raise `Ctree::ExitStatus`; user-declined confirmations print an
+informational line and raise `ExitStatus` with code 1; success returns
+normally. `bin/ctree` is the sole process-exit site.
+
+**UI backend.** All presentation flows through a swappable backend:
+install one with `Ctree.ui_backend = your_backend`. The default
+`Ctree::UI::PlainBackend` reproduces ctree's plain terminal output. A
+backend implements:
+
+| Method | Contract |
+|---|---|
+| `info(message)` / `warn(message)` / `debug(message)` | one status line; the backend owns any prefix or glyph |
+| `line(text = "")` | verbatim output line (tables, summaries, data) |
+| `section(title) { ... }` | titled block around the yielded body |
+| `spin(message) { ... }` | spinner around the block; MUST return the block's value and re-raise its exceptions |
+| `progress(message) { \|report\| ... }` | progress display; yields a callable taking a percent integer; same value/exception rules as `spin` |
+| `read_line(prompt, prefixed: true)` | free-form prompt; `prefixed: false` marks a continuation line that should not be re-badged |
+
+Rules embedders must honor, and ctree code must keep honoring:
+
+- `spin`/`progress` blocks MAY run on another thread. Never read
+  thread-local state (`$?`, `Thread.current`) across the block boundary;
+  return what you need as the block's value.
+- A block value shaped `[stdout, stderr, status]` (an `Open3.capture3`
+  triple) or a bare object responding to `success?` tells the backend
+  whether to render the operation as failed.
+- A capturing backend may defer output emitted inside `spin`/`progress`
+  blocks until the spinner finishes. Avoid `Log` calls inside those
+  blocks where ordering matters.
+- `read_line` returns the entered line and may return `""` (not `nil`)
+  on EOF under some backends; treat empty and nil alike.
+
 ## Development
 
 ```bash
