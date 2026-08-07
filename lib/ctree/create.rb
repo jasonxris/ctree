@@ -447,6 +447,14 @@ module Ctree
       end
       Log.warn_ "docker compose up --no-start: #{no_start_errors.join("; ")}" unless no_start_errors.empty?
 
+      _, down_error, down_status = Sh.capture3(
+        "docker", "compose",
+        "--project-directory", target_path.to_s,
+        "--project-name", target_project,
+        "down"
+      )
+      Log.warn_ "docker compose down: #{down_error.strip}" unless down_status.success?
+
       empty_count = 0
       source_volumes.each do |src_vol|
         suffix = src_vol.sub(prefix_re, "")

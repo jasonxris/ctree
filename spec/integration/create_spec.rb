@@ -59,6 +59,7 @@ RSpec.describe "Ctree::CLI create" do
       ["", "", true],   # docker volume ls -- pre-existing snapshot
       ["web\n", "", true], # docker compose config --services
       ["", "", true],   # docker compose up --no-start --no-build web
+      ["", "", true],
     ]
   end
 
@@ -98,6 +99,7 @@ RSpec.describe "Ctree::CLI create" do
       ["", "", true],                       # up --no-start --no-build web
       ["", "", true],                       # up --no-start --no-build webpack
       ["", "", true],                       # up --no-start --no-build jobs
+      ["", "", true],
     ])
 
     expect {
@@ -120,6 +122,30 @@ RSpec.describe "Ctree::CLI create" do
            out: File::NULL, err: File::NULL)
   end
 
+  it "removes the containers created for volume materialization, keeping volumes" do
+    allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
+    allow(Ctree::Prompt).to receive(:read_line).and_return("n")
+    stub_clonefile
+    stub_sh(docker_capture3: docker_stubs)
+
+    expect {
+      Ctree::CLI.run(["create", "wt1", "wt1"])
+    }.not_to raise_error
+
+    sibling = @work.parent / "wt1"
+    expect(Ctree::Sh).to have_received(:capture3).with(
+      "docker", "compose", "--project-directory", sibling.to_s,
+      "--project-name", "wt1", "down"
+    )
+    expect(Ctree::Sh).not_to have_received(:capture3).with(
+      "docker", "compose", "--project-directory", sibling.to_s,
+      "--project-name", "wt1", "down", "-v"
+    )
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force", sibling.to_s,
+           out: File::NULL, err: File::NULL)
+  end
+
   it "falls back to a single up --no-start --no-build when compose services can't be listed" do
     allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
     allow(Ctree::Prompt).to receive(:read_line).and_return("n")
@@ -132,6 +158,7 @@ RSpec.describe "Ctree::CLI create" do
       ["", "", true],                 # docker volume ls -- pre-existing snapshot
       ["", "boom", false],            # docker compose config --services -- fails
       ["", "", true],                 # fallback: up --no-start --no-build (all services)
+      ["", "", true],
     ])
 
     expect {
@@ -219,6 +246,7 @@ RSpec.describe "Ctree::CLI create" do
       ["", "", true],                          # docker volume ls -- pre-existing snapshot
       ["web\n", "", true],                     # docker compose config --services
       ["", "", true],                          # docker compose up --no-start --no-build web
+      ["", "", true],
     ])
 
     expect {
@@ -282,6 +310,7 @@ RSpec.describe "Ctree::CLI create" do
       ["", "", true],                 # docker volume ls -- pre-existing snapshot
       ["web\n", "", true],            # docker compose config --services
       ["", "", true],                 # docker compose up --no-start --no-build web
+      ["", "", true],
     ])
 
     expect {
@@ -346,6 +375,7 @@ RSpec.describe "Ctree::CLI create" do
       ["", "", true],                          # docker volume ls -- pre-existing snapshot
       ["web\n", "", true],                     # docker compose config --services
       ["", "", true],                          # docker compose up --no-start --no-build web
+      ["", "", true],
     ])
 
     expect {
@@ -510,6 +540,7 @@ RSpec.describe "Ctree::CLI create" do
       ["", "", true],              # docker volume ls — pre-existing snapshot
       ["web\n", "", true],         # docker compose config --services
       ["", "", true],              # docker compose up --no-start --no-build web
+      ["", "", true],
     ])
 
     expect {
