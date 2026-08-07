@@ -79,8 +79,7 @@ RSpec.describe Ctree::Config do
         write_repo_config(dir, "update_volumes: \"not a list\"\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/missing or invalid "update_volumes"/).to_stderr
+        }.to raise_error(Ctree::Error, /missing or invalid "update_volumes"/)
       end
     end
 
@@ -104,8 +103,7 @@ RSpec.describe Ctree::Config do
         write_repo_config(dir, "exclude: \"not-a-list\"\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/missing or invalid "exclude"/).to_stderr
+        }.to raise_error(Ctree::Error, /missing or invalid "exclude"/)
       end
     end
 
@@ -129,8 +127,7 @@ RSpec.describe Ctree::Config do
         write_repo_config(dir, "update: \"not-a-list\"\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/missing or invalid "update"/).to_stderr
+        }.to raise_error(Ctree::Error, /missing or invalid "update"/)
       end
     end
 
@@ -154,8 +151,7 @@ RSpec.describe Ctree::Config do
         write_repo_config(dir, "empty_volumes: \"not-a-list\"\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/missing or invalid "empty_volumes"/).to_stderr
+        }.to raise_error(Ctree::Error, /missing or invalid "empty_volumes"/)
       end
     end
 
@@ -188,8 +184,7 @@ RSpec.describe Ctree::Config do
         write_repo_config(dir, "post_update_hooks: not_an_array\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/missing or invalid "post_update_hooks"/).to_stderr
+        }.to raise_error(Ctree::Error, /missing or invalid "post_update_hooks"/)
       end
     end
 
@@ -213,8 +208,7 @@ RSpec.describe Ctree::Config do
         write_repo_config(dir, "free_branch_prefix:\n  - not\n  - a_string\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/missing or invalid "free_branch_prefix"/).to_stderr
+        }.to raise_error(Ctree::Error, /missing or invalid "free_branch_prefix"/)
       end
     end
   end

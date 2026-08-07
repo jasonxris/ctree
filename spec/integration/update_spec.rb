@@ -22,8 +22,7 @@ RSpec.describe "Ctree::CLI update" do
   it "errors when run from the source project rather than a worktree" do
     expect {
       Ctree::CLI.run(["update"])
-    }.to output(/already in the source project/).to_stderr
-      .and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+    }.to raise_error(Ctree::Error, /already in the source project/)
   end
 
   it "rejects extra arguments" do
@@ -73,8 +72,7 @@ RSpec.describe "Ctree::CLI update" do
     Dir.chdir(wt.to_s) do
       expect {
         Ctree::CLI.run(["update"])
-      }.to output(/invalid ctree override file.*ctree compose-config fix/).to_stderr
-        .and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      }.to raise_error(Ctree::Error, /invalid ctree override file.*ctree compose-config fix/)
     end
   ensure
     if defined?(wt) && wt

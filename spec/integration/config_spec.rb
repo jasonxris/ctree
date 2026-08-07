@@ -101,8 +101,7 @@ RSpec.describe "Ctree::CLI config add / remove" do
       Dir.chdir(non_repo) do
         expect {
           Ctree::CLI.run(["config", "add"])
-        }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/must be run from within a git repository/).to_stderr
+        }.to raise_error(Ctree::Error, /must be run from within a git repository/)
       end
     end
   end
@@ -174,8 +173,7 @@ RSpec.describe "Ctree::CLI config list (prints local config)" do
     Dir.chdir(sub.to_s) do
       expect {
         Ctree::CLI.run(["config", "list"])
-      }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/must be invoked from project top-level/).to_stderr
+      }.to raise_error(Ctree::Error, /must be invoked from project top-level/)
     end
   end
 

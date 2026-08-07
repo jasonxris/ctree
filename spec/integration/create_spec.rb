@@ -32,7 +32,7 @@ RSpec.describe "Ctree::CLI create" do
   it "rejects an invalid worktree name" do
     expect {
       Ctree::CLI.run(["create", "Bad Name", "wt1"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+    }.to raise_error(Ctree::Error, /invalid name/)
   end
 
   it "refuses to create a worktree of a worktree" do
@@ -43,8 +43,7 @@ RSpec.describe "Ctree::CLI create" do
     Dir.chdir(existing_wt.to_s) do
       expect {
         Ctree::CLI.run(["create", "wt2", "wt2"])
-      }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/must be run from a source repo, not from a worktree/).to_stderr
+      }.to raise_error(Ctree::Error, /must be run from a source repo, not from a worktree/)
     end
 
     system("git", "-C", @work.to_s, "worktree", "remove", "--force", existing_wt.to_s,
@@ -491,7 +490,7 @@ RSpec.describe "Ctree::CLI create" do
 
     expect {
       Ctree::CLI.run(["create", "wt2", "wt2"])
-    }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+    }.to raise_error(Ctree::Error)
   ensure
     FileUtils.rm_rf(sibling.to_s) if sibling
   end
@@ -609,7 +608,7 @@ RSpec.describe "Ctree::CLI create" do
 
       expect {
         Ctree::CLI.run(["create", "wt1", "wt1"])
-      }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      }.to raise_error(Ctree::Error)
     end
 
     it "exits when source is not on master, with uncommitted changes, user declines to stash and switch" do
@@ -619,7 +618,7 @@ RSpec.describe "Ctree::CLI create" do
 
       expect {
         Ctree::CLI.run(["create", "wt1", "wt1"])
-      }.to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      }.to raise_error(Ctree::Error)
     end
 
     it "switches source to master and continues when not on master, no uncommitted changes, user accepts" do

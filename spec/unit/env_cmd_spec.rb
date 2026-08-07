@@ -42,15 +42,13 @@ RSpec.describe Ctree::EnvCmd do
     it "dies when worktree .env is missing" do
       write_env(@source / ".env", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("list") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/no \.env/).to_stderr
+        .to raise_error(Ctree::Error, /no \.env/)
     end
 
     it "dies when source .env is missing" do
       write_env(@target / ".env", "FOO" => "bar")
       expect { Ctree::EnvCmd.run("list") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/no \.env/).to_stderr
+        .to raise_error(Ctree::Error, /no \.env/)
     end
   end
 
@@ -217,8 +215,7 @@ RSpec.describe Ctree::EnvCmd do
 
     it "list dies naming the configured file when it's missing" do
       expect { Ctree::EnvCmd.run("list") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/no \.env\.custom/).to_stderr
+        .to raise_error(Ctree::Error, /no \.env\.custom/)
     end
 
     it "check reports discrepancies from the configured file" do

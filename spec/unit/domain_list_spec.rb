@@ -49,20 +49,17 @@ RSpec.describe "Ctree::Domain.list" do
 
     it "exits 1 with a macOS-only notice for list" do
       expect { Ctree::Domain.list }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/macOS/).to_stderr
+        .to raise_error(Ctree::Error, /macOS/)
     end
 
     it "exits 1 with a macOS-only notice for add" do
       expect { Ctree::Domain.add(tld: "docker") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/macOS/).to_stderr
+        .to raise_error(Ctree::Error, /macOS/)
     end
 
     it "exits 1 with a macOS-only notice for remove" do
       expect { Ctree::Domain.remove(tld: "docker") }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/macOS/).to_stderr
+        .to raise_error(Ctree::Error, /macOS/)
     end
   end
 end

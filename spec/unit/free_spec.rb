@@ -206,8 +206,7 @@ RSpec.describe Ctree::Free do
         .with("git", "-C", @target.to_s, "rebase", "--abort")
         .and_return(["", "", fake_status(true)])
       expect { described_class.run }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/rebase conflict/).to_stderr
+        .to raise_error(Ctree::Error, /rebase conflict/)
       expect(Ctree::Sh).to have_received(:capture3)
         .with("git", "-C", @target.to_s, "rebase", "--abort")
     end
@@ -222,8 +221,7 @@ RSpec.describe Ctree::Free do
       end
       Dir.chdir(@source.to_s) do
         expect { described_class.run }
-          .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-          .and output(/source project/).to_stderr
+          .to raise_error(Ctree::Error, /source project/)
       end
     end
   end

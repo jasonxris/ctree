@@ -23,6 +23,15 @@ module Ctree
 
   SPINNER_FRAMES = %w[| / - \\].freeze
 
+  class Error < StandardError
+    attr_reader :exit_code
+
+    def initialize(message, exit_code = 1)
+      super(message)
+      @exit_code = exit_code
+    end
+  end
+
   module Log
     @debug = false
 
@@ -49,8 +58,7 @@ module Ctree
     end
 
     def die(msg, code = 1)
-      warn "[#{PROG}] ERROR: #{msg}"
-      exit code
+      raise Error.new(msg, code)
     end
   end
 

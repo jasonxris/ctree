@@ -22,8 +22,7 @@ RSpec.describe Ctree::CLI do
 
     it "exits 1 and prints an error for an unknown command" do
       expect { Ctree::CLI.run(["help", "notacommand"]) }
-        .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
-        .and output(/notacommand/).to_stderr
+        .to raise_error(Ctree::Error, /notacommand/)
     end
 
     it "prints general usage when no command is given" do

@@ -4,4 +4,9 @@
 $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 require "ctree"
 
-Ctree::CLI.run(ARGV)
+begin
+  Ctree::CLI.run(ARGV)
+rescue Ctree::Error => error
+  warn "[#{Ctree::PROG}] ERROR: #{error.message}"
+  exit error.exit_code
+end
