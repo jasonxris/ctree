@@ -331,7 +331,7 @@ module Ctree
         end
       end
 
-      raise ExitStatus.new(failed ? 2 : 0)
+      raise ExitStatus.new(2) if failed
     end
 
     def detect_default_branch(root)

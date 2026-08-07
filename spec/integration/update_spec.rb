@@ -142,7 +142,7 @@ RSpec.describe "Ctree::CLI update" do
     Dir.chdir(wt.to_s) do
       capture_stdout do
         expect { Ctree::CLI.run(["update"]) }
-          .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
+          .not_to raise_error
       end
     end
 
@@ -185,7 +185,7 @@ RSpec.describe "Ctree::CLI update" do
     Dir.chdir(wt.to_s) do
       capture_stdout do
         expect { Ctree::CLI.run(["update"]) }
-          .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
+          .not_to raise_error
       end
     end
 
@@ -223,8 +223,7 @@ RSpec.describe "Ctree::CLI update" do
 
     Dir.chdir(wt.to_s) do
       expect { Ctree::CLI.run(["update"]) }
-        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
-        .and output(/\[skipped\].*src_log.*->.*wt1_log.*\(empty volume\)/).to_stdout
+        .to output(/\[skipped\].*src_log.*->.*wt1_log.*\(empty volume\)/).to_stdout
     end
   ensure
     if defined?(wt) && wt
@@ -259,8 +258,7 @@ RSpec.describe "Ctree::CLI update" do
 
     Dir.chdir(wt.to_s) do
       expect { Ctree::CLI.run(["update"]) }
-        .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
-        .and output(/\[skipped\].*src_log.*->.*wt1_log.*\(empty volume\)/).to_stdout
+        .to output(/\[skipped\].*src_log.*->.*wt1_log.*\(empty volume\)/).to_stdout
     end
   ensure
     if defined?(wt) && wt
@@ -299,7 +297,7 @@ RSpec.describe "Ctree::CLI update" do
     Dir.chdir(wt.to_s) do
       capture_stdout do
         expect { Ctree::CLI.run(["update"]) }
-          .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
+          .not_to raise_error
       end
     end
 

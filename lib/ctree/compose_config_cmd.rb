@@ -65,7 +65,6 @@ module Ctree
       override_path = target_path / override_rel
       Log.die "#{override_rel} not found" unless override_path.file?
       Log.line override_path.read
-      raise ExitStatus.new(0)
     end
 
     def cmd_check(target_path, override_rel, share_volumes, source_project, source_volumes)
@@ -73,7 +72,7 @@ module Ctree
 
       if share_volumes.empty?
         Log.info "no share_volumes configured"
-        raise ExitStatus.new(0)
+        return
       end
 
       override_path = target_path / override_rel
@@ -99,7 +98,6 @@ module Ctree
       end
 
       Log.info "#{override_rel} is valid"
-      raise ExitStatus.new(0)
     end
 
     def cmd_fix(target_path, override_rel, share_volumes, source_project, source_volumes)
@@ -107,7 +105,7 @@ module Ctree
 
       if share_volumes.empty?
         Log.info "no share_volumes configured"
-        raise ExitStatus.new(0)
+        return
       end
 
       result = ComposeOverride.audit(
@@ -118,7 +116,7 @@ module Ctree
 
       if result[:fixable].empty? && result[:unfixable].empty?
         Log.info "#{override_rel} is already correct"
-        raise ExitStatus.new(0)
+        return
       end
 
       ComposeOverride.fix(
@@ -126,7 +124,6 @@ module Ctree
         share_volumes: share_volumes, source_project: source_project,
         source_volumes: source_volumes
       )
-      raise ExitStatus.new(0)
     end
 
     private_class_method :resolve_worktree!, :resolve_source!,

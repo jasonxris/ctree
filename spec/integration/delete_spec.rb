@@ -27,7 +27,6 @@ RSpec.describe "Ctree::CLI delete" do
     expect {
       Ctree::CLI.run(["delete", "ghost"])
     }.to output(/nothing to remove for 'ghost'/).to_stdout
-      .and raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
   end
 
   it "aborts when user does not type 'yes'" do
@@ -68,7 +67,7 @@ RSpec.describe "Ctree::CLI delete" do
 
       capture_stdout do
         expect { Ctree::CLI.run(["delete", "ghost"]) }
-          .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
+          .not_to raise_error
       end
 
       expect(Ctree::Sh).to have_received(:capture3)
@@ -92,7 +91,7 @@ RSpec.describe "Ctree::CLI delete" do
 
       output = capture_stdout do
         expect { Ctree::CLI.run(["delete", "ghost"]) }
-          .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
+          .not_to raise_error
       end
 
       expect(spawn_calls.size).to eq(1)
@@ -121,7 +120,6 @@ RSpec.describe "Ctree::CLI delete" do
       capture_stdout do
         expect { Ctree::CLI.run(["delete", "ghost"]) }
           .to output(/falling back to synchronous removal/).to_stderr
-          .and raise_error(Ctree::ExitStatus)
       end
 
       # Since git worktree remove and rm_rf both target a path that

@@ -30,8 +30,7 @@ RSpec.describe "Ctree::Rebase main branch skip logic" do
     stub_run_up_to(@target, @source, branch: "CTR-001", ancestor: true)
     expect(Ctree::Sh).not_to receive(:capture3).with("git", anything, anything, "rebase", "master")
     expect { Ctree::Rebase.run }
-      .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
-      .and output(/already up to date with master/).to_stdout
+      .to output(/already up to date with master/).to_stdout
   end
 
   it "rebases when master is not yet an ancestor of HEAD" do
@@ -40,8 +39,7 @@ RSpec.describe "Ctree::Rebase main branch skip logic" do
       ["", "", fake_status(true)]
     end
     expect { Ctree::Rebase.run }
-      .to raise_error(Ctree::ExitStatus) { |e| expect(e.exit_code).to eq(0) }
-      .and output(/rebased CTR-001 onto master/).to_stdout
+      .to output(/rebased CTR-001 onto master/).to_stdout
   end
 end
 

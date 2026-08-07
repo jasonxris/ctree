@@ -110,7 +110,7 @@ module Ctree
       nothing_to_do = vols.empty? && containers.empty? && tagged_images.empty? && !worktree_registered && !target_path.exist?
       if nothing_to_do
         Log.info "nothing to remove for '#{name}' — no worktree, branch, containers, or volumes found"
-        raise ExitStatus.new(0)
+        return
       end
 
       # Show the user exactly what will happen.
@@ -290,7 +290,6 @@ module Ctree
       Log.line
       if failures.empty?
         Log.info "deletion complete for '#{name}'"
-        raise ExitStatus.new(0)
       else
         Log.warn_ "removal completed with failures: #{failures.join(", ")}"
         raise ExitStatus.new(2)
