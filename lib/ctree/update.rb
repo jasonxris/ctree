@@ -274,7 +274,7 @@ module Ctree
       unless override_rel.empty?
         override_source = source_root / override_rel
         override_target = target_path / override_rel
-        if !override_target.file? && override_source.file?
+        if !override_target.file? && override_source.file? && (target_path / env_filename).file?
           FileUtils.cp(override_source.to_s, override_target.to_s)
           Log.info "copied #{override_rel} from source"
           updated_file_count += 1

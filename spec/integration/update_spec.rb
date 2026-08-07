@@ -353,6 +353,48 @@ RSpec.describe "Ctree::CLI update" do
     end
   end
 
+  it "does not copy the compose override or create an env file in a worktree without one" do
+    FileUtils.mkdir_p((@work / ".ctree").to_s)
+    File.write((@work / ".ctree" / "config.yml").to_s,
+               "compose_override_file: docker-compose.local.ctree.yml\n")
+    File.write((@work / "docker-compose.local.ctree.yml").to_s, "source-content")
+    system("git", "-C", @work.to_s, "add", ".ctree", "docker-compose.local.ctree.yml",
+           out: File::NULL, err: File::NULL)
+    system("git", "-C", @work.to_s, "commit", "-q", "--amend", "--no-edit",
+           out: File::NULL, err: File::NULL)
+
+    wt = @parent / "wt1"
+    system("git", "-C", @work.to_s, "worktree", "add", "-q", "-b", "wt1", wt.to_s,
+           out: File::NULL, err: File::NULL)
+    FileUtils.rm_f((wt / "docker-compose.local.ctree.yml").to_s)
+    FileUtils.rm_f((wt / ".env").to_s)
+
+    stub_sh(
+      docker_system: [true],
+      docker_capture3: [
+        ["", "", true],   # docker ps source
+        ["", "", true],   # docker ps target
+        ["", "", true],   # Images.tag_to_target (docker images)
+        ["", "", true],   # docker volume ls
+      ]
+    )
+
+    Dir.chdir(wt.to_s) do
+      capture_stdout do
+        expect { Ctree::CLI.run(["update"]) }
+          .not_to raise_error
+      end
+    end
+
+    expect((wt / "docker-compose.local.ctree.yml")).not_to exist
+    expect((wt / ".env")).not_to exist
+  ensure
+    if defined?(wt) && wt
+      system("git", "-C", @work.to_s, "worktree", "remove", "--force", wt.to_s,
+             out: File::NULL, err: File::NULL)
+    end
+  end
+
   def capture_stdout
     original = $stdout
     $stdout = StringIO.new
