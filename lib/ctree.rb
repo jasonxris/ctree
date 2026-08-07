@@ -204,6 +204,10 @@ module Ctree
     def with_spinner(msg, &block)
       Ctree.ui_backend.spin(msg, &block)
     end
+
+    def with_progress(msg, &block)
+      Ctree.ui_backend.progress(msg, &block)
+    end
   end
 
   module Prompt
@@ -299,49 +303,27 @@ module Ctree
       current_bytes = 0
       err_buf = +""
       exit_status = nil
-      state_mutex = Mutex.new
-      done = false
 
       Log.debug "copying #{src_vol} -> #{tgt_vol}" unless $stdout.tty?
 
-      Sh.popen3(*cmd) do |_stdin, stdout, stderr, wait_thr|
-        err_thread = Thread.new { err_buf << stderr.read.to_s }
+      Spinner.with_progress("copying #{src_vol} -> #{tgt_vol}") do |report_progress|
+        Sh.popen3(*cmd) do |_stdin, stdout, stderr, wait_thr|
+          err_thread = Thread.new { err_buf << stderr.read.to_s }
 
-        render_thread = Thread.new do
-          spinner_idx = 0
-          until state_mutex.synchronize { done }
-            cur, tot = state_mutex.synchronize { [current_bytes, total_bytes] }
-            elapsed = (Time.now - start_time).to_i
-            pct = (tot && tot > 0) ? [(cur.to_f / tot * 100).round, 100].min : 0
-            if $stdout.tty?
-              print format("\r\e[K[ctree] copying %s -> %s %d%% (%s) %ds",
-                           src_vol, tgt_vol, pct,
-                           SPINNER_FRAMES[spinner_idx % SPINNER_FRAMES.length], elapsed)
-              $stdout.flush
+          stdout.each_line do |raw|
+            line = raw.strip
+            if line.start_with?("TOTAL:")
+              total_bytes = line.sub("TOTAL:", "").to_i
+            elsif line.start_with?("PROGRESS:")
+              current_bytes = line.sub("PROGRESS:", "").to_i
             end
-            spinner_idx += 1
-            sleep 0.1
+            percent = (total_bytes && total_bytes > 0) ? [(current_bytes.to_f / total_bytes * 100).round, 100].min : 0
+            report_progress.call(percent)
           end
+
+          err_thread.join
+          exit_status = wait_thr.value
         end
-
-        stdout.each_line do |raw|
-          line = raw.strip
-          if line.start_with?("TOTAL:")
-            state_mutex.synchronize { total_bytes = line.sub("TOTAL:", "").to_i }
-          elsif line.start_with?("PROGRESS:")
-            state_mutex.synchronize { current_bytes = line.sub("PROGRESS:", "").to_i }
-          end
-        end
-
-        state_mutex.synchronize { done = true }
-        render_thread.join
-        err_thread.join
-        exit_status = wait_thr.value
-      end
-
-      if $stdout.tty?
-        print "\r\e[K"
-        $stdout.flush
       end
 
       elapsed = (Time.now - start_time).to_i

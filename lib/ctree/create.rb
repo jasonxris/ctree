@@ -164,9 +164,7 @@ module Ctree
       # to avoid showing both "copying source content" and the spinner line.
       Log.debug "copying source content" unless $stdout.tty?
 
-      state_mutex = Mutex.new
       done_count = 0
-      clone_done = false
       clone_start = Time.now
       clone_elapsed = 0
       source_size_bytes = nil
@@ -178,56 +176,34 @@ module Ctree
         source_size_bytes = out.lines.sum { |l| l.split("\t").first.to_i } * 1024 if st.success?
       end
 
-      render_thread = if $stdout.tty?
-        Thread.new do
-          spinner_idx = 0
-          until state_mutex.synchronize { clone_done }
-            n = state_mutex.synchronize { done_count }
-            elapsed = (Time.now - clone_start).to_i
-            pct = total > 0 ? (n * 100 / total) : 0
-            print format("\r\e[K[ctree] copying source content %d%% (%s) %ds",
-                         pct, SPINNER_FRAMES[spinner_idx % SPINNER_FRAMES.length], elapsed)
-            $stdout.flush
-            spinner_idx += 1
-            sleep 0.1
-          end
-        end
-      end
+      Spinner.with_progress("copying source content") do |report_progress|
+        items.each do |src_child|
+          base = File.basename(src_child)
+          tgt_child = (target_path / base).to_s
 
-      items.each do |src_child|
-        base = File.basename(src_child)
-        tgt_child = (target_path / base).to_s
-
-        item_ok = if File.symlink?(src_child)
-          # clonefile(2) follows symlinks in src regardless of flags on this
-          # macOS version, producing a regular file. Handle symlinks explicitly.
-          begin
-            File.symlink(File.readlink(src_child), tgt_child)
+          item_ok = if File.symlink?(src_child)
+            # clonefile(2) follows symlinks in src regardless of flags on this
+            # macOS version, producing a regular file. Handle symlinks explicitly.
+            begin
+              File.symlink(File.readlink(src_child), tgt_child)
+              true
+            rescue SystemCallError
+              false
+            end
+          elsif Clonefile.available? && Clonefile.clone(src_child, tgt_child)
             true
-          rescue SystemCallError
-            false
+          else
+            _, _, st = Sh.capture3("cp", "--reflink=auto", "-R", src_child, tgt_child)
+            st.success?
           end
-        elsif Clonefile.available? && Clonefile.clone(src_child, tgt_child)
-          true
-        else
-          _, _, st = Sh.capture3("cp", "--reflink=auto", "-R", src_child, tgt_child)
-          st.success?
-        end
 
-        failed_items << base unless item_ok
-        state_mutex.synchronize { done_count += 1 }
+          failed_items << base unless item_ok
+          done_count += 1
+          report_progress.call(total > 0 ? (done_count * 100 / total) : 0)
+        end
       end
 
       clone_elapsed = (Time.now - clone_start).to_i
-      state_mutex.synchronize { clone_done = true }
-
-      # Stop the spinner first so the user isn't staring at a frozen 100%
-      # bar while we wait for du to finish.
-      if render_thread
-        render_thread.join
-        print "\r\e[K"
-        $stdout.flush
-      end
 
       # Give du up to 3s to finish. If it misses the window (shouldn't
       # happen since cloning takes much longer), just omit the size.

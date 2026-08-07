@@ -35,6 +35,11 @@ RSpec.describe Ctree::UI do
         yield
       end
 
+      def progress(message)
+        calls << [:progress, message]
+        yield ->(percent) { calls << [:progress_update, percent] }
+      end
+
       def read_line(prompt)
         calls << [:read_line, prompt]
         "typed"
@@ -97,6 +102,13 @@ RSpec.describe Ctree::UI do
     expect(backend.calls).to eq([[:section, "summary"], [:line, "inside"]])
   end
 
+  it "routes Spinner.with_progress through the backend with a usable updater" do
+    Ctree.ui_backend = backend
+    result = Ctree::Spinner.with_progress("copying") { |report_progress| report_progress.call(50); :done }
+    expect(result).to eq(:done)
+    expect(backend.calls).to eq([[:progress, "copying"], [:progress_update, 50]])
+  end
+
   describe Ctree::UI::PlainBackend do
     it "prints info lines with the ctree prefix" do
       expect { Ctree::Log.info "hello" }.to output("[ctree] hello\n").to_stdout
@@ -120,6 +132,13 @@ RSpec.describe Ctree::UI do
     it "prints a section as a blank line and banner before its body" do
       expect { Ctree::Log.section("worktrees") { Ctree::Log.line "  row" } }
         .to output("\n=== worktrees ===\n  row\n").to_stdout
+    end
+
+    it "yields progress silently and returns the block value when stdout is not a tty" do
+      result = nil
+      expect { result = Ctree::Spinner.with_progress("copying") { |report_progress| report_progress.call(10); 7 } }
+        .to output("").to_stdout
+      expect(result).to eq(7)
     end
   end
 end
