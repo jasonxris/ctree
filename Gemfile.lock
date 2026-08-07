@@ -1,3 +1,8 @@
+PATH
+  remote: .
+  specs:
+    ctree (0.1.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -21,6 +26,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  ctree!
   rspec (~> 3.12)
 
 BUNDLED WITH
