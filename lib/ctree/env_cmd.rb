@@ -110,7 +110,7 @@ module Ctree
       end
 
       orphaned.each do |key|
-        raw = Prompt.read_line("#{key}=#{tgt_env[key]} (not in source #{env_filename}, delete? [y/N]): ")
+        raw = Prompt.read_line("#{key}=#{tgt_env[key]} (not in source #{env_filename}) delete? [y/N]: ")
         answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
         EnvFile.delete(tgt_env_path.to_s, key) if answer == "y" || answer == "yes"
       end
