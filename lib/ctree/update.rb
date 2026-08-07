@@ -280,13 +280,17 @@ module Ctree
         run_post_update_hooks = lambda do
           post_update_hooks.each_with_index do |cmd, idx|
             label = "post-update hook #{idx + 1}/#{post_update_hooks.size}"
-            if Log.debug?
-              Spinner.with_spinner("running #{label}: #{cmd}") { system(cmd) }
+            hook_status = if Log.debug?
+              Spinner.with_spinner("running #{label}: #{cmd}") do
+                system(cmd)
+                $?
+              end
             else
               system(cmd)
+              $?
             end
-            unless $?.success?
-              Log.die "post-update hook failed (exit #{$?.exitstatus}): #{cmd}"
+            unless hook_status.success?
+              Log.die "post-update hook failed (exit #{hook_status.exitstatus}): #{cmd}"
             end
           end
         end
