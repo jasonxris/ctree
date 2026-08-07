@@ -78,11 +78,11 @@ module Ctree
         Log.info "no local config file found at #{target}"
         return
       end
-      puts
-      puts "[#{PROG}] About to delete:"
-      puts "  #{target}"
-      puts "  #{dir}/  (if empty after removing the config)"
-      puts
+      Log.line
+      Log.info "About to delete:"
+      Log.line "  #{target}"
+      Log.line "  #{dir}/  (if empty after removing the config)"
+      Log.line
       raw = Prompt.read_line("[#{PROG}] Type 'yes' to confirm removal: ")
       answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip
       unless answer == "yes"
@@ -109,9 +109,9 @@ module Ctree
         Log.info "no local config file (#{REPO_CONFIG_REL}); run `#{PROG} config add` to create one"
         return
       end
-      puts "# Local config: #{repo_path}"
+      Log.line "# Local config: #{repo_path}"
       resolved = load(source_root)
-      puts YAML.dump(resolved.transform_keys(&:to_s))
+      Log.line YAML.dump(resolved.transform_keys(&:to_s))
     end
 
     def ensure_at_repo_top!

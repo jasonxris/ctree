@@ -64,7 +64,7 @@ module Ctree
       Log.die "compose_override_file not configured" if override_rel.empty?
       override_path = target_path / override_rel
       Log.die "#{override_rel} not found" unless override_path.file?
-      puts override_path.read
+      Log.line override_path.read
       raise ExitStatus.new(0)
     end
 

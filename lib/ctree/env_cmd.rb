@@ -57,7 +57,7 @@ module Ctree
       Log.die "no #{env_filename} found in source repo at #{src_env_path}" unless src_env_path.file?
 
       tgt_env = EnvFile.parse(tgt_env_path.to_s)
-      tgt_env.each { |k, v| puts "#{k}=#{v}" }
+      tgt_env.each { |k, v| Log.line "#{k}=#{v}" }
       raise ExitStatus.new(0)
     end
 
@@ -79,8 +79,8 @@ module Ctree
         Log.info "env is in sync"
         raise ExitStatus.new(0)
       else
-        missing.each { |k| puts "[missing] #{k}" }
-        extra.each   { |k| puts "[extra] #{k}" }
+        missing.each { |k| Log.line "[missing] #{k}" }
+        extra.each   { |k| Log.line "[extra] #{k}" }
         raise ExitStatus.new(1)
       end
     end

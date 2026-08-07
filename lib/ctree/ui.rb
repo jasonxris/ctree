@@ -15,6 +15,16 @@ module Ctree
         puts "[#{PROG}] #{message}"
       end
 
+      def line(text = "")
+        puts text
+      end
+
+      def section(title)
+        puts
+        puts "=== #{title} ==="
+        yield
+      end
+
       def spin(message)
         prefix = "[#{PROG}] #{message}"
         unless $stdout.tty?

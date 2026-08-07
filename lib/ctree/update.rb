@@ -301,32 +301,32 @@ module Ctree
       end
 
       if Log.debug?
-        puts
-        puts "=== ctree update summary ==="
-        puts "worktree:  #{target_path}"
+        Log.section("ctree update summary") do
+          Log.line "worktree:  #{target_path}"
 
-        if sync_results.any?
-          puts "volumes:"
-          sync_results.each do |src, tgt, st, msg|
-            line = "  [#{st.to_s.ljust(7)}] #{src}  ->  #{tgt}"
-            line += "  (#{msg})" unless msg.to_s.empty?
-            puts line
+          if sync_results.any?
+            Log.line "volumes:"
+            sync_results.each do |src, tgt, st, msg|
+              line = "  [#{st.to_s.ljust(7)}] #{src}  ->  #{tgt}"
+              line += "  (#{msg})" unless msg.to_s.empty?
+              Log.line line
+            end
           end
-        end
 
-        if sync_file_results.any?
-          puts "files/dirs:"
-          sync_file_results.each do |rel, st, msg|
-            line = "  [#{st.to_s.ljust(7)}] #{rel}"
-            line += "  (#{msg})" unless msg.to_s.empty?
-            puts line
+          if sync_file_results.any?
+            Log.line "files/dirs:"
+            sync_file_results.each do |rel, st, msg|
+              line = "  [#{st.to_s.ljust(7)}] #{rel}"
+              line += "  (#{msg})" unless msg.to_s.empty?
+              Log.line line
+            end
           end
-        end
 
-        if post_update_hooks.any?
-          puts "post-update hooks:"
-          post_update_hooks.each do |cmd|
-            puts "  [ran    ] #{cmd}"
+          if post_update_hooks.any?
+            Log.line "post-update hooks:"
+            post_update_hooks.each do |cmd|
+              Log.line "  [ran    ] #{cmd}"
+            end
           end
         end
       end

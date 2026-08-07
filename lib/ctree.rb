@@ -74,6 +74,14 @@ module Ctree
       Ctree.ui_backend.warn(msg)
     end
 
+    def line(text = "")
+      Ctree.ui_backend.line(text)
+    end
+
+    def section(title, &block)
+      Ctree.ui_backend.section(title, &block)
+    end
+
     def die(msg, code = 1)
       raise Error.new(msg, code)
     end
@@ -231,10 +239,10 @@ module Ctree
     # then prompts on a short second line — avoids Readline redraw artifacts
     # caused by prompts longer than the terminal width.
     def for_env_var_change(key, current_value, worktree_values: {})
-      puts "[#{PROG}] #{key}=#{current_value}"
+      Log.info "#{key}=#{current_value}"
       if worktree_values.any?
         pad = worktree_values.keys.map(&:length).max
-        worktree_values.each { |wt, val| puts "  #{wt.ljust(pad)}: #{val}" }
+        worktree_values.each { |wt, val| Log.line "  #{wt.ljust(pad)}: #{val}" }
       end
       raw = read_line("  (enter to keep, or type a new value): ")
       return current_value if raw.nil?

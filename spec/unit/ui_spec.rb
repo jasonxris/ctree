@@ -26,6 +26,15 @@ RSpec.describe Ctree::UI do
         yield
       end
 
+      def line(text = "")
+        calls << [:line, text]
+      end
+
+      def section(title)
+        calls << [:section, title]
+        yield
+      end
+
       def read_line(prompt)
         calls << [:read_line, prompt]
         "typed"
@@ -75,6 +84,19 @@ RSpec.describe Ctree::UI do
     expect(backend.calls).to eq([[:read_line, "? "]])
   end
 
+  it "routes Log.line through the backend, defaulting to an empty line" do
+    Ctree.ui_backend = backend
+    Ctree::Log.line "detail"
+    Ctree::Log.line
+    expect(backend.calls).to eq([[:line, "detail"], [:line, ""]])
+  end
+
+  it "routes Log.section through the backend and yields its block" do
+    Ctree.ui_backend = backend
+    Ctree::Log.section("summary") { Ctree::Log.line "inside" }
+    expect(backend.calls).to eq([[:section, "summary"], [:line, "inside"]])
+  end
+
   describe Ctree::UI::PlainBackend do
     it "prints info lines with the ctree prefix" do
       expect { Ctree::Log.info "hello" }.to output("[ctree] hello\n").to_stdout
@@ -89,6 +111,15 @@ RSpec.describe Ctree::UI do
       expect { result = Ctree::Spinner.with_spinner("working") { 42 } }
         .to output("[ctree] working\n").to_stdout
       expect(result).to eq(42)
+    end
+
+    it "prints lines bare, without the ctree prefix" do
+      expect { Ctree::Log.line "  row" }.to output("  row\n").to_stdout
+    end
+
+    it "prints a section as a blank line and banner before its body" do
+      expect { Ctree::Log.section("worktrees") { Ctree::Log.line "  row" } }
+        .to output("\n=== worktrees ===\n  row\n").to_stdout
     end
   end
 end

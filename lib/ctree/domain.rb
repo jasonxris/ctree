@@ -55,14 +55,14 @@ module Ctree
       end
 
       if tlds.empty?
-        puts "no domains configured in #{conf_path}"
+        Log.line "no domains configured in #{conf_path}"
         return
       end
 
       tlds.each do |tld|
         resolver_path = File.join(RESOLVER_DIR, tld)
         status = File.exist?(resolver_path) ? "ok" : "missing"
-        puts "#{tld}   (resolver: #{status})"
+        Log.line "#{tld}   (resolver: #{status})"
       end
     end
 

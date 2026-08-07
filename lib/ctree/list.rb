@@ -41,36 +41,36 @@ module Ctree
                 else entries
                 end
 
-      puts
-      puts "=== worktrees ==="
-      puts
+      Log.section("worktrees") do
+        Log.line
 
-      if (filter == :free || filter == :used) && visible.empty?
-        if empty_prefix.nil? || empty_prefix.empty?
-          puts "  (free_branch_prefix not set in .ctree/config.yml)"
-        elsif filter == :free
-          puts "  no free worktrees matching \"#{empty_prefix}\""
-        else
-          puts "  no used worktrees"
+        if (filter == :free || filter == :used) && visible.empty?
+          if empty_prefix.nil? || empty_prefix.empty?
+            Log.line "  (free_branch_prefix not set in .ctree/config.yml)"
+          elsif filter == :free
+            Log.line "  no free worktrees matching \"#{empty_prefix}\""
+          else
+            Log.line "  no used worktrees"
+          end
+          Log.line
+          return
         end
-        puts
-        return
+
+        name_width = visible.map { |e| File.basename(e[:path]).length }.max.to_i
+
+        visible.each do |entry|
+          name   = File.basename(entry[:path]).ljust(name_width)
+          branch = entry[:branch] || "detached"
+          branch_label = (entry[:free] ? "#{branch} (free)" : branch)
+          tags = []
+          tags << "source" if entry[:source]
+          tags << "current" if entry[:current]
+          marker = tags.empty? ? "" : " ← #{tags.join(", ")}"
+          Log.line "  #{name}  #{entry[:path]}  [#{branch_label}]#{marker}"
+        end
+
+        Log.line
       end
-
-      name_width = visible.map { |e| File.basename(e[:path]).length }.max.to_i
-
-      visible.each do |entry|
-        name   = File.basename(entry[:path]).ljust(name_width)
-        branch = entry[:branch] || "detached"
-        branch_label = (entry[:free] ? "#{branch} (free)" : branch)
-        tags = []
-        tags << "source" if entry[:source]
-        tags << "current" if entry[:current]
-        marker = tags.empty? ? "" : " ← #{tags.join(", ")}"
-        puts "  #{name}  #{entry[:path]}  [#{branch_label}]#{marker}"
-      end
-
-      puts
     end
 
     def parse_worktree_porcelain(raw)

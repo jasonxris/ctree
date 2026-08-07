@@ -112,14 +112,14 @@ module Ctree
       end
 
       if Log.debug?
-        puts
-        puts "=== ctree rebase summary ==="
-        results.each do |status, name, msg|
-          line = "  [#{status.to_s.ljust(7)}] #{name}"
-          line += "  (#{msg})" unless msg.empty?
-          puts line
+        Log.section("ctree rebase summary") do
+          results.each do |status, name, msg|
+            line = "  [#{status.to_s.ljust(7)}] #{name}"
+            line += "  (#{msg})" unless msg.empty?
+            Log.line line
+          end
+          Log.line
         end
-        puts
       end
 
       failed = results.any? { |st, _, _| st == :failed }

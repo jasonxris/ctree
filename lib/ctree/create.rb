@@ -587,7 +587,7 @@ module Ctree
       end
 
       unless promptable.empty?
-        puts
+        Log.line
         promptable.each do |key, value|
           worktree_values = sibling_envs.filter_map { |wt, env| [wt, env[key]] if env[key] }.to_h
           new_value = Prompt.for_env_var_change(key, value, worktree_values: worktree_values)
@@ -607,31 +607,31 @@ module Ctree
       # === final report ===
 
       if Log.debug?
-        puts
-        puts "=== ctree summary ==="
-        puts "worktree:  #{target_path}"
-        puts "branch:    #{branch}#{branch_exists ? " (existing, checked out)" : " (new)"}"
-        puts "#{env_filename}:      #{tgt_env_path}"
-        final_env_vars.each { |k, v| puts "  #{k}=#{v}" }
-        puts "override:  #{override_rel.empty? ? "(none configured)" : override_rel}"
-        puts
+        Log.section("ctree summary") do
+          Log.line "worktree:  #{target_path}"
+          Log.line "branch:    #{branch}#{branch_exists ? " (existing, checked out)" : " (new)"}"
+          Log.line "#{env_filename}:      #{tgt_env_path}"
+          final_env_vars.each { |k, v| Log.line "  #{k}=#{v}" }
+          Log.line "override:  #{override_rel.empty? ? "(none configured)" : override_rel}"
+          Log.line
 
-        if volume_results.any?
-          puts "volumes:"
-          copied  = volume_results.select { |_, _, st, _| st == :copied || st == :skipped || st == :failed }
-          empty   = volume_results.select { |_, _, st, _| st == :empty }
-          shared  = volume_results.select { |_, _, st, _| st == :shared }
-          (copied + empty + shared).each do |src, tgt, st, msg|
-            line = case st
-            when :shared then "  [shared ] #{src} (#{msg})"
-            when :empty  then "  [empty  ] #{tgt} (#{msg})"
-            else
-              l = "  [#{st.to_s.ljust(7)}] #{src} -> #{tgt}"
-              msg.to_s.empty? ? l : "#{l} (#{msg})"
+          if volume_results.any?
+            Log.line "volumes:"
+            copied  = volume_results.select { |_, _, st, _| st == :copied || st == :skipped || st == :failed }
+            empty   = volume_results.select { |_, _, st, _| st == :empty }
+            shared  = volume_results.select { |_, _, st, _| st == :shared }
+            (copied + empty + shared).each do |src, tgt, st, msg|
+              line = case st
+              when :shared then "  [shared ] #{src} (#{msg})"
+              when :empty  then "  [empty  ] #{tgt} (#{msg})"
+              else
+                l = "  [#{st.to_s.ljust(7)}] #{src} -> #{tgt}"
+                msg.to_s.empty? ? l : "#{l} (#{msg})"
+              end
+              Log.line line
             end
-            puts line
+            Log.line
           end
-          puts
         end
       end
 
