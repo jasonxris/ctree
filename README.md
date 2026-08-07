@@ -471,9 +471,12 @@ and validate it themselves.
 **Exceptions, never exits.** Nothing under `lib/` calls `Kernel#exit`.
 Failures with a message raise `Ctree::Error` (carrying `exit_code`);
 silent non-zero status exits (check discrepancies, partial failures)
-raise `Ctree::ExitStatus`; user-declined confirmations print an
-informational line and raise `ExitStatus` with code 1; success returns
-normally. `bin/ctree` is the sole process-exit site.
+raise `Ctree::ExitStatus`; success returns normally. `bin/ctree` is the
+sole process-exit site. User-declined confirmations vary by command:
+`update`, `rebase`, and `delete` print a line and raise `ExitStatus`
+with code 1, while `free` and the config-reset/removal prompts treat a
+decline as a no-op and return normally — embedders must not assume
+"declined" always surfaces as a non-zero status.
 
 **UI backend.** All presentation flows through a swappable backend:
 install one with `Ctree.ui_backend = your_backend`. The default
