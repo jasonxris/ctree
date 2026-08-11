@@ -92,7 +92,7 @@ module Ctree
         return [name.delete_prefix("/"), conf_path, port]
       end
 
-      Log.die "no running dnsmasq container found; is traefik-dns running?"
+      Log.die "no running dnsmasq container found"
     end
 
     def read_conf(path)
