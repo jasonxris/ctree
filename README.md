@@ -269,8 +269,8 @@ Which docker volumes ctree copies, syncs, or treats as source-shared caches
 is controlled by config — not by hardcoded values in the executable. There
 are two layers:
 
-1. **Shipped defaults** in `lib/ctree/defaults.yml` (loaded automatically).
-2. **Per-repo override** at `<source_repo>/.ctree.yml` (optional). Keys
+1. **Shipped defaults** in `lib/ctree/config.yml` (loaded automatically).
+2. **Per-repo override** at `<source_repo>/.ctree/config.yml` (optional). Keys
    present here replace the shipped values; keys you omit fall through to
    the defaults.
 
@@ -397,7 +397,7 @@ are two layers:
 
 ### Behavior on errors
 
-- **No `.ctree.yml`** → silent; uses shipped defaults.
+- **No `.ctree/config.yml`** → silent; uses shipped defaults.
 - **Malformed YAML** or **non-mapping top level** → ctree warns to stderr
   and falls back to shipped defaults. The command continues.
 - **Wrong type for a known key** (e.g. a string where a list is expected)
@@ -418,7 +418,7 @@ your compose files can use in Traefik `Host()` rules and domain env vars.
 
 ### Per-repo setup
 
-In your repo's `.ctree.yml`:
+In your repo's `.ctree/config.yml`:
 
 ```yaml
 host_name_suffix: docker   # written to HOST_NAME_SUFFIX in every worktree .env
