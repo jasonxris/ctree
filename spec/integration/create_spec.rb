@@ -54,9 +54,8 @@ RSpec.describe "Ctree::CLI create" do
     [
       ["", "", true],   # docker info
       ["", "", true],   # docker ps source -- no running containers
+      ["", "", true],   # docker volume ls -- no source volumes, doubles as the snapshot
       ["", "", true],   # docker images -- no source images to tag
-      ["", "", true],   # docker volume ls -- no source volumes
-      ["", "", true],   # docker volume ls -- pre-existing snapshot
       ["web\n", "", true], # docker compose config --services
       ["", "", true],   # docker compose up --no-start --no-build web
       ["", "", true],
@@ -113,9 +112,8 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],                       # docker info
       ["", "", true],                       # docker ps source
+      ["", "", true],                       # docker volume ls -- none, doubles as the snapshot
       ["", "", true],                       # docker images
-      ["", "", true],                       # docker volume ls -- no source volumes
-      ["", "", true],                       # docker volume ls -- pre-existing snapshot
       ["web\nwebpack\njobs\n", "", true],   # docker compose config --services
       ["", "", true],                       # up --no-start --no-build web
       ["", "", true],                       # up --no-start --no-build webpack
@@ -174,9 +172,8 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],                 # docker info
       ["", "", true],                 # docker ps source
+      ["", "", true],                 # docker volume ls -- none, doubles as the snapshot
       ["", "", true],                 # docker images
-      ["", "", true],                 # docker volume ls -- no source volumes
-      ["", "", true],                 # docker volume ls -- pre-existing snapshot
       ["", "boom", false],            # docker compose config --services -- fails
       ["", "", true],                 # fallback: up --no-start --no-build (all services)
       ["", "", true],
@@ -262,9 +259,8 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],                          # docker info
       ["", "", true],                          # docker ps source
+      ["src_yarn-cache\n", "", true],          # docker volume ls -- yarn-cache, doubles as the snapshot
       ["", "", true],                          # docker images
-      ["src_yarn-cache\n", "", true],          # docker volume ls -- source has yarn-cache
-      ["", "", true],                          # docker volume ls -- pre-existing snapshot
       ["web\n", "", true],                     # docker compose config --services
       ["", "", true],                          # docker compose up --no-start --no-build web
       ["", "", true],
@@ -326,9 +322,8 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],                 # docker info
       ["", "", true],                 # docker ps source
-      ["", "", true],                 # docker images
       ["src_yarn-cache\n", "", true], # docker volume ls -- yarn-cache exists, missing-vol does not
-      ["", "", true],                 # docker volume ls -- pre-existing snapshot
+      ["", "", true],                 # docker images
       ["web\n", "", true],            # docker compose config --services
       ["", "", true],                 # docker compose up --no-start --no-build web
       ["", "", true],
@@ -391,9 +386,8 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],                          # docker info
       ["", "", true],                          # docker ps source
+      ["src_yarn-cache\n", "", true],          # docker volume ls -- yarn-cache, doubles as the snapshot
       ["", "", true],                          # docker images
-      ["src_yarn-cache\n", "", true],          # docker volume ls -- source has yarn-cache
-      ["", "", true],                          # docker volume ls -- pre-existing snapshot
       ["web\n", "", true],                     # docker compose config --services
       ["", "", true],                          # docker compose up --no-start --no-build web
       ["", "", true],
@@ -548,9 +542,7 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],                      # docker info
       ["", "", true],                      # docker ps source
-      ["", "", true],                      # docker images
-      ["src_data\n", "", true],            # docker volume ls -- source has a copyable volume
-      ["", "", true],                      # docker volume ls -- pre-existing snapshot
+      ["src_data\n", "", true],            # docker volume ls -- a copyable volume, doubles as the snapshot
       ["10737418240\n1073741824\n", "", true], # docker run -- needs 10GB, 1GB available
     ])
 
@@ -560,8 +552,9 @@ RSpec.describe "Ctree::CLI create" do
       }.to raise_error(Ctree::Error, /not enough free space/)
     }.to output(/continuing would exhaust the disk/).to_stderr
 
-    system("git", "-C", @work.to_s, "worktree", "remove", "--force",
-           (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
+    expect(@work.parent / "wt1").not_to exist
+    worktree_list, _, _ = Open3.capture3("git", "-C", @work.to_s, "worktree", "list")
+    expect(worktree_list).not_to include("wt1")
   end
 
   it "proceeds when the copy fits with room to spare" do
@@ -572,10 +565,9 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],                         # docker info
       ["", "", true],                         # docker ps source
-      ["", "", true],                         # docker images
-      ["src_data\n", "", true],               # docker volume ls -- source has a copyable volume
-      ["", "", true],                         # docker volume ls -- pre-existing snapshot
+      ["src_data\n", "", true],               # docker volume ls -- a copyable volume, doubles as the snapshot
       ["1024\n107374182400\n", "", true],     # docker run -- needs 1KB, 100GB available
+      ["", "", true],                         # docker images
       ["web\n", "", true],                    # docker compose config --services
       ["", "", true],                         # docker compose up --no-start --no-build web
       ["", "", true],                         # docker compose down
@@ -605,9 +597,8 @@ RSpec.describe "Ctree::CLI create" do
     stub_sh(docker_capture3: [
       ["", "", true],              # docker info
       ["", "", true],              # docker ps source
+      ["src_log\n", "", true],    # docker volume ls — log volume, doubles as the snapshot
       ["", "", true],              # docker images
-      ["src_log\n", "", true],    # docker volume ls — source has log volume
-      ["", "", true],              # docker volume ls — pre-existing snapshot
       ["web\n", "", true],         # docker compose config --services
       ["", "", true],              # docker compose up --no-start --no-build web
       ["", "", true],

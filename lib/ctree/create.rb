@@ -128,6 +128,32 @@ module Ctree
         end
       end
 
+      vols_out, _, status = Sh.capture3("docker", "volume", "ls", "--format", "{{.Name}}")
+      Log.die "docker volume ls failed" unless status.success?
+
+      prefix_re = /\A#{Regexp.escape(source_project)}_/
+      source_volumes = vols_out.lines.map(&:strip).reject(&:empty?).select { |v| v =~ prefix_re }
+      pre_existing_vols = vols_out.lines.map(&:strip).freeze
+
+      copy_candidates = source_volumes.reject do |src_vol|
+        suffix = src_vol.sub(prefix_re, "")
+        share_volumes.include?(suffix) || empty_volumes.include?(suffix) ||
+          pre_existing_vols.include?("#{target_project}_#{suffix}")
+      end
+
+      unless copy_candidates.empty?
+        needed_bytes, available_bytes = Spinner.with_spinner("checking free space") do
+          Volume.copy_budget(copy_candidates)
+        end
+        if needed_bytes && available_bytes < needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
+          required = needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
+          Log.warn_ "copying #{Sizes.human(needed_bytes)} of volumes needs #{Sizes.human(required)} free"
+          Log.warn_ "docker has #{Sizes.human(available_bytes)} available"
+          Log.warn_ "continuing would exhaust the disk and crash containers in every running stack"
+          Log.die "not enough free space; reclaim space (e.g. `docker builder prune -af`) and retry"
+        end
+      end
+
       # === register worktree + clone all source content ===
       # git worktree add --no-checkout creates an empty target dir with a
       # .git FILE pointer but skips the file checkout. We then clone every
@@ -281,15 +307,9 @@ module Ctree
       tagged = Images.tag_to_target(source_project, target_project)
       Log.info "tagged #{tagged.size} docker images" if tagged.any? && !Log.debug?
 
-      # === discover and replicate volumes ===
+      # === replicate volumes ===
 
       volume_results = []
-
-      vols_out, _, status = Sh.capture3("docker", "volume", "ls", "--format", "{{.Name}}")
-      Log.die "docker volume ls failed" unless status.success?
-
-      prefix_re = /\A#{Regexp.escape(source_project)}_/
-      source_volumes = vols_out.lines.map(&:strip).reject(&:empty?).select { |v| v =~ prefix_re }
 
       if source_volumes.empty?
         Log.debug "no source volumes found with prefix '#{source_project}_'"
@@ -395,30 +415,6 @@ module Ctree
         unless parts.include?(override_file)
           cf_action = EnvFile.upsert(tgt_env_path.to_s, "COMPOSE_FILE", (parts + [override_file]).join(":"))
           Log.debug "appended #{override_file} to COMPOSE_FILE (#{cf_action}) in #{tgt_env_path}"
-        end
-      end
-
-      # Snapshot volumes that exist before --no-start for idempotency: if a
-      # target volume is already present, skip copying data into it.
-      all_vols_out, _, _ = Sh.capture3("docker", "volume", "ls", "--format", "{{.Name}}")
-      pre_existing_vols = all_vols_out.lines.map(&:strip).freeze
-
-      copy_candidates = source_volumes.reject do |src_vol|
-        suffix = src_vol.sub(prefix_re, "")
-        share_volumes.include?(suffix) || empty_volumes.include?(suffix) ||
-          pre_existing_vols.include?("#{target_project}_#{suffix}")
-      end
-
-      unless copy_candidates.empty?
-        needed_bytes, available_bytes = Spinner.with_spinner("checking free space") do
-          Volume.copy_budget(copy_candidates)
-        end
-        if needed_bytes && available_bytes < needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
-          required = needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
-          Log.warn_ "copying #{Sizes.human(needed_bytes)} of volumes needs #{Sizes.human(required)} free"
-          Log.warn_ "docker has #{Sizes.human(available_bytes)} available"
-          Log.warn_ "continuing would exhaust the disk and crash containers in every running stack"
-          Log.die "not enough free space; reclaim space (e.g. `docker builder prune -af`) and retry"
         end
       end
 
