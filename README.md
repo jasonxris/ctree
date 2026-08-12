@@ -538,19 +538,46 @@ backend implements:
 | `section(title) { ... }` | titled block around the yielded body |
 | `spin(message) { ... }` | spinner around the block; MUST return the block's value and re-raise its exceptions |
 | `progress(message) { \|report\| ... }` | progress display; yields a callable taking a percent integer; same value/exception rules as `spin` |
+| `group(title) { \|register\| ... }` | concurrent task display; see below |
 | `read_line(prompt, prefixed: true)` | free-form prompt; `prefixed: false` marks a continuation line that should not be re-badged |
+
+`group` renders many tasks running at once under one heading. It yields a
+`register` callable that takes a label and a block; ctree registers every
+task first, then the backend runs them, each block receiving a
+percent-reporting callable exactly like `progress`:
+
+```ruby
+Ctree::Spinner.with_group("copying volumes", concurrency: 4) do |register|
+  volumes.each do |volume|
+    register.call("copying #{volume}") { |report_progress| copy(volume, report_progress) }
+  end
+end
+# => one value per registered task, in registration order
+```
+
+A `group` implementation MUST return the task blocks' values in
+registration order regardless of the order they finished, and MUST let
+every task finish before re-raising the first exception any of them
+raised — a task that fails must not strand its siblings. The backend owns
+threading and rendering; **ctree owns how many tasks may work at once**,
+via the `concurrency:` argument to `Ctree::Spinner.with_group`, which
+makes each task wait for a permit inside its own block. A backend
+therefore never needs to know about limits, and may start every
+registered task at once. `PlainBackend` prints the title, then one line
+per task as it completes, with no cursor animation — multi-line
+animation is a rich backend's business.
 
 Rules embedders must honor, and ctree code must keep honoring:
 
-- `spin`/`progress` blocks MAY run on another thread. Never read
+- `spin`/`progress`/`group` blocks MAY run on another thread. Never read
   thread-local state (`$?`, `Thread.current`) across the block boundary;
   return what you need as the block's value.
 - A block value shaped `[stdout, stderr, status]` (an `Open3.capture3`
   triple) or a bare object responding to `success?` tells the backend
   whether to render the operation as failed.
-- A capturing backend may defer output emitted inside `spin`/`progress`
-  blocks until the spinner finishes. Avoid `Log` calls inside those
-  blocks where ordering matters.
+- A capturing backend may defer output emitted inside
+  `spin`/`progress`/`group` blocks until the spinner finishes. Avoid
+  `Log` calls inside those blocks where ordering matters.
 - `read_line` returns the entered line and may return `""` (not `nil`)
   on EOF under some backends; treat empty and nil alike.
 

@@ -40,6 +40,16 @@ RSpec.describe Ctree::UI do
         yield ->(percent) { calls << [:progress_update, percent] }
       end
 
+      def group(title)
+        calls << [:group, title]
+        tasks = []
+        yield ->(label, &work) { tasks << [label, work] }
+        tasks.map do |label, work|
+          calls << [:group_task, label]
+          work.call(->(percent) { calls << [:group_update, label, percent] })
+        end
+      end
+
       def read_line(prompt, prefixed: true)
         calls << [:read_line, prompt, prefixed]
         "typed"
@@ -109,6 +119,68 @@ RSpec.describe Ctree::UI do
     expect(backend.calls).to eq([[:progress, "copying"], [:progress_update, 50]])
   end
 
+  it "routes Spinner.with_group through the backend and returns task values in registration order" do
+    Ctree.ui_backend = backend
+    result = Ctree::Spinner.with_group("copying volumes") do |register|
+      register.call("first") { :one }
+      register.call("second") { |report_progress| report_progress.call(50); :two }
+    end
+    expect(result).to eq([:one, :two])
+    expect(backend.calls).to eq([
+      [:group, "copying volumes"],
+      [:group_task, "first"],
+      [:group_task, "second"],
+      [:group_update, "second", 50]
+    ])
+  end
+
+  it "caps how many with_group tasks hold a permit at once" do
+    Ctree.ui_backend = Ctree::UI::PlainBackend.new
+    concurrent = 0
+    peak = 0
+    peak_mutex = Mutex.new
+
+    Ctree::Spinner.with_group("bounded", concurrency: 2) do |register|
+      6.times do |index|
+        register.call("task #{index}") do
+          peak_mutex.synchronize { concurrent += 1; peak = [peak, concurrent].max }
+          sleep 0.05
+          peak_mutex.synchronize { concurrent -= 1 }
+          index
+        end
+      end
+    end
+
+    expect(peak).to eq(2)
+  end
+
+  it "returns with_group values in registration order even when tasks finish out of order" do
+    Ctree.ui_backend = Ctree::UI::PlainBackend.new
+    result = Ctree::Spinner.with_group("ordering", concurrency: 3) do |register|
+      register.call("slow") { sleep 0.05; :slow }
+      register.call("fast") { :fast }
+    end
+    expect(result).to eq([:slow, :fast])
+  end
+
+  it "re-raises a with_group task's exception after every task has finished" do
+    Ctree.ui_backend = Ctree::UI::PlainBackend.new
+    finished = []
+    finished_mutex = Mutex.new
+
+    expect do
+      Ctree::Spinner.with_group("failing", concurrency: 2) do |register|
+        register.call("boom") { raise Ctree::Error.new("copy failed", 2) }
+        register.call("survivor") do
+          sleep 0.02
+          finished_mutex.synchronize { finished << :survivor }
+        end
+      end
+    end.to raise_error(Ctree::Error, "copy failed")
+
+    expect(finished).to eq([:survivor])
+  end
+
   describe Ctree::UI::PlainBackend do
     it "prints info lines with the ctree prefix" do
       expect { Ctree::Log.info "hello" }.to output("[ctree] hello\n").to_stdout
@@ -132,6 +204,16 @@ RSpec.describe Ctree::UI do
     it "prints a section as a blank line and banner before its body" do
       expect { Ctree::Log.section("worktrees") { Ctree::Log.line "  row" } }
         .to output("\n=== worktrees ===\n  row\n").to_stdout
+    end
+
+    it "prints the group title, then one line per task as it completes" do
+      output = nil
+      expect do
+        output = Ctree::Spinner.with_group("copying volumes") do |register|
+          register.call("copying pg_data") { :done }
+        end
+      end.to output("[ctree] copying volumes\n[ctree]   copying pg_data (0s)\n").to_stdout
+      expect(output).to eq([:done])
     end
 
     it "yields progress silently and returns the block value when stdout is not a tty" do

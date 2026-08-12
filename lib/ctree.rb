@@ -227,6 +227,25 @@ module Ctree
     def with_progress(msg, &block)
       Ctree.ui_backend.progress(msg, &block)
     end
+
+    def with_group(title, concurrency: nil, &block)
+      return Ctree.ui_backend.group(title, &block) if concurrency.nil?
+
+      permits = Thread::SizedQueue.new(concurrency)
+      Ctree.ui_backend.group(title) do |register|
+        bounded_register = lambda do |label, &work|
+          register.call(label) do |report_progress|
+            permits.push(:permit)
+            begin
+              work.call(report_progress)
+            ensure
+              permits.pop
+            end
+          end
+        end
+        block.call(bounded_register)
+      end
+    end
   end
 
   module Prompt

@@ -99,6 +99,35 @@ module Ctree
         result
       end
 
+      def group(title)
+        puts "[#{PROG}] #{title}"
+        tasks = []
+        yield ->(label, &work) { tasks << [label, work] }
+
+        print_mutex = Mutex.new
+        threads = tasks.map do |label, work|
+          Thread.new do
+            start_time = Time.now
+            value = work.call(->(_percent) {})
+            print_mutex.synchronize do
+              puts "[#{PROG}]   #{label} (#{(Time.now - start_time).to_i}s)"
+            end
+            value
+          end
+        end
+
+        outcomes = threads.map do |thread|
+          [:value, thread.value]
+        rescue => error
+          [:error, error]
+        end
+
+        failure = outcomes.find { |kind, _| kind == :error }
+        raise failure.last if failure
+
+        outcomes.map(&:last)
+      end
+
       def read_line(prompt, prefixed: true)
         full_prompt = prefixed ? "[#{PROG}] #{prompt}" : prompt
         if HAS_READLINE
