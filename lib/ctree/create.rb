@@ -579,9 +579,9 @@ module Ctree
 
           if new_value != value
             action = EnvFile.upsert(tgt_env_path.to_s, key, new_value)
-            Log.debug "#{key}=#{new_value} (#{action}) in #{tgt_env_path}"
+            Log.debug "#{Secrets.pair(key, new_value)} (#{action}) in #{tgt_env_path}"
           else
-            Log.debug "#{key}=#{value} (kept) in #{tgt_env_path}"
+            Log.debug "#{Secrets.pair(key, value)} (kept) in #{tgt_env_path}"
           end
         end
       end
@@ -595,7 +595,7 @@ module Ctree
           Log.line "worktree:  #{target_path}"
           Log.line "branch:    #{branch}#{branch_exists ? " (existing, checked out)" : " (new)"}"
           Log.line "#{env_filename}:      #{tgt_env_path}"
-          final_env_vars.each { |k, v| Log.line "  #{k}=#{v}" }
+          final_env_vars.each { |key, value| Log.line "  #{Secrets.pair(key, value)}" }
           Log.line "override:  #{override_rel.empty? ? "(none configured)" : override_rel}"
           Log.line
 

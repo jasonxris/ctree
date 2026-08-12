@@ -30,6 +30,15 @@ RSpec.describe Ctree::EnvCmd do
         .to output(/BAZ=qux/).to_stdout
     end
 
+    it "prints secret keys without their values" do
+      write_env(@source / ".env", "FOO" => "bar")
+      write_env(@target / ".env", "FOO" => "bar", "ARTIFACTORY_TOKEN" => "cmVmdGtu")
+      expect { Ctree::EnvCmd.run("list") }
+        .to output(/ARTIFACTORY_TOKEN=\(hidden\)/).to_stdout
+      expect { Ctree::EnvCmd.run("list") }
+        .not_to output(/cmVmdGtu/).to_stdout
+    end
+
     it "does not print [missing] annotations" do
       write_env(@source / ".env", "FOO" => "bar", "EXTRA" => "x")
       write_env(@target / ".env", "FOO" => "bar")

@@ -198,6 +198,25 @@ module Ctree
     end
   end
 
+  module Secrets
+    KEY_PATTERN = /TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|PRIVATE_KEY/
+    REDACTION = "(hidden)"
+
+    module_function
+
+    def secret?(key)
+      key.to_s.upcase.match?(KEY_PATTERN)
+    end
+
+    def redact(key, value)
+      secret?(key) ? REDACTION : value
+    end
+
+    def pair(key, value)
+      "#{key}=#{redact(key, value)}"
+    end
+  end
+
   module Spinner
     module_function
 
@@ -239,19 +258,32 @@ module Ctree
       end
     end
 
-    # Generic prompt for any .env variable. Prints key=value as a log line
-    # then prompts on a short second line — avoids Readline redraw artifacts
-    # caused by prompts longer than the terminal width.
+    # Generic prompt for any .env variable. Prints the key as a log line then
+    # prompts on a short second line — avoids Readline redraw artifacts caused
+    # by prompts longer than the terminal width. Values for secret-looking keys
+    # are never printed, because Log also writes to the logfile on disk.
     def for_env_var_change(key, current_value, worktree_values: {})
-      Log.info "#{key}=#{current_value}"
-      if worktree_values.any?
-        pad = worktree_values.keys.map(&:length).max
-        worktree_values.each { |wt, val| Log.line "  #{wt.ljust(pad)}: #{val}" }
+      if Secrets.secret?(key)
+        Log.info "#{key} (hidden, #{current_value.to_s.length} chars)"
+        describe_siblings(worktree_values) { |value| value == current_value ? "same as source" : "differs" }
+        prompt = "  (enter to copy from source, or type a new value): "
+      else
+        Log.info "#{key}=#{current_value}"
+        describe_siblings(worktree_values) { |value| value }
+        prompt = "  (enter to keep, or type a new value): "
       end
-      raw = read_line("  (enter to keep, or type a new value): ", prefixed: false)
+
+      raw = read_line(prompt, prefixed: false)
       return current_value if raw.nil?
       answer = raw.gsub(/[\x00-\x1f\x7f]/, "").strip
       answer.empty? ? current_value : answer
+    end
+
+    def describe_siblings(worktree_values)
+      return if worktree_values.empty?
+
+      pad = worktree_values.keys.map(&:length).max
+      worktree_values.each { |worktree, value| Log.line "  #{worktree.ljust(pad)}: #{yield(value)}" }
     end
   end
 

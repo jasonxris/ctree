@@ -90,7 +90,9 @@ btrfs/xfs and falls back to a plain copy on ext4.
 After the cloning, docker volumes are replicated under the new compose
 prefix and a tailored `.env` is written with `COMPOSE_PROJECT_NAME`.
 For each constant defined in the source `.env` you will be prompted
-to either accept or update the value for the worktree.
+to either accept or update the value for the worktree. Values for
+secret-looking keys are never printed — see [Secret values](#secret-values).
+
 
 ### delete
 
@@ -200,8 +202,10 @@ ctree env fix     # resolve discrepancies interactively
 
 #### list
 
-Prints all `KEY=VALUE` pairs from the worktree `.env`. No comparison
-with the source is performed.
+Prints all `KEY=VALUE` pairs from the worktree `.env`, with secret-looking
+keys rendered as `KEY=(hidden)` (see [Secret values](#secret-values)). No
+comparison with the source is performed. Read the file directly if you
+need a secret's value.
 
 #### check
 
@@ -229,6 +233,29 @@ Resolves discrepancies interactively, acting only on actual gaps:
 
 ctree-managed keys and `skip_env_keys` are never offered for deletion.
 Missing keys are always prompted regardless of `skip_env_keys`.
+
+#### Secret values
+
+A key whose name contains `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`,
+`CREDENTIAL`, `API_KEY`, or `PRIVATE_KEY` is prompted without its value:
+
+```
+✓ ARTIFACTORY_TOKEN (hidden, 64 chars)
+  review-1: same as source
+  review-2: differs
+?   (enter to copy from source, or type a new value):
+```
+
+This covers the terminal and any logfile an embedder installs behind the
+UI backend, since both are fed from the same `Log` calls. Sibling
+worktrees are compared against the source rather than listed, so a shared
+token is still visible as shared without being printed.
+
+The same rule applies everywhere ctree would otherwise render a value:
+`env list` and the `env fix` delete prompt print `KEY=(hidden)`, and so
+do `create`'s `--debug` lines and its end-of-run summary. No ctree code
+path prints a secret's value; `.env` itself remains the only place to
+read one.
 
 ### compose-config
 
