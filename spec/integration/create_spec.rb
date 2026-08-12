@@ -560,7 +560,7 @@ RSpec.describe "Ctree::CLI create" do
   it "proceeds when the copy fits with room to spare" do
     allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
     allow(Ctree::Prompt).to receive(:read_line).and_return("n")
-    allow(Ctree::Volume).to receive(:copy_with_progress).and_return([fake_status(true), "", 1024])
+    allow(Ctree::Volume).to receive(:copy).and_return([fake_status(true), "", 1024])
     stub_clonefile
     stub_sh(docker_capture3: [
       ["", "", true],                         # docker info
@@ -576,7 +576,7 @@ RSpec.describe "Ctree::CLI create" do
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
     }.not_to raise_error
-    expect(Ctree::Volume).to have_received(:copy_with_progress).with("src_data", "wt1_data")
+    expect(Ctree::Volume).to have_received(:copy).with("src_data", "wt1_data", anything)
 
     system("git", "-C", @work.to_s, "worktree", "remove", "--force",
            (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
@@ -607,6 +607,78 @@ RSpec.describe "Ctree::CLI create" do
     expect {
       Ctree::CLI.run(["create", "wt1", "wt1"])
     }.to output(/\[empty {2}\].*wt1_log.*\(empty volume\)/).to_stdout
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force",
+           (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
+  end
+
+  def stub_concurrency_tracking_copy(observed)
+    tracker = { in_flight: 0, peak: 0, mutex: Mutex.new }
+    allow(Ctree::Volume).to receive(:copy) do
+      tracker[:mutex].synchronize do
+        tracker[:in_flight] += 1
+        tracker[:peak] = [tracker[:peak], tracker[:in_flight]].max
+      end
+      sleep 0.05
+      tracker[:mutex].synchronize { tracker[:in_flight] -= 1 }
+      observed << :copied
+      [fake_status(true), "", 1024]
+    end
+    tracker
+  end
+
+  def three_copyable_volumes_stubs
+    [
+      ["", "", true],                     # docker info
+      ["", "", true],                     # docker ps source
+      ["src_a\nsrc_b\nsrc_c\n", "", true], # docker volume ls, doubles as the snapshot
+      ["3072\n107374182400\n", "", true], # docker run -- free space, plenty
+      ["", "", true],                     # docker images
+      ["web\n", "", true],                # docker compose config --services
+      ["", "", true],                     # docker compose up --no-start --no-build web
+      ["", "", true],                     # docker compose down
+    ]
+  end
+
+  it "copies at most volume_copy_concurrency volumes at once" do
+    FileUtils.mkdir_p((@work / ".ctree").to_s)
+    File.write((@work / ".ctree" / "config.yml").to_s, "volume_copy_concurrency: 2\n")
+    system("git", "-C", @work.to_s, "add", ".ctree", out: File::NULL, err: File::NULL)
+    system("git", "-C", @work.to_s, "commit", "-q", "--amend", "--no-edit",
+           out: File::NULL, err: File::NULL)
+
+    allow(Ctree::Prompt).to receive(:read_line).and_return("")
+    stub_clonefile
+    copied = []
+    tracker = stub_concurrency_tracking_copy(copied)
+    stub_sh(docker_capture3: three_copyable_volumes_stubs)
+
+    Ctree::CLI.run(["create", "wt1", "wt1"])
+
+    expect(copied.size).to eq(3)
+    expect(tracker[:peak]).to eq(2)
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force",
+           (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
+  end
+
+  it "copies volumes strictly one at a time when volume_copy_concurrency is 1" do
+    FileUtils.mkdir_p((@work / ".ctree").to_s)
+    File.write((@work / ".ctree" / "config.yml").to_s, "volume_copy_concurrency: 1\n")
+    system("git", "-C", @work.to_s, "add", ".ctree", out: File::NULL, err: File::NULL)
+    system("git", "-C", @work.to_s, "commit", "-q", "--amend", "--no-edit",
+           out: File::NULL, err: File::NULL)
+
+    allow(Ctree::Prompt).to receive(:read_line).and_return("")
+    stub_clonefile
+    copied = []
+    tracker = stub_concurrency_tracking_copy(copied)
+    stub_sh(docker_capture3: three_copyable_volumes_stubs)
+
+    Ctree::CLI.run(["create", "wt1", "wt1"])
+
+    expect(copied.size).to eq(3)
+    expect(tracker[:peak]).to eq(1)
 
     system("git", "-C", @work.to_s, "worktree", "remove", "--force",
            (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)

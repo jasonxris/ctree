@@ -482,6 +482,8 @@ module Ctree
 
       volume_copy_start = Time.now
       volume_copy_bytes = 0
+      copy_targets = []
+
       source_volumes.each do |src_vol|
         suffix = src_vol.sub(prefix_re, "")
         tgt_vol = "#{target_project}_#{suffix}"
@@ -507,13 +509,31 @@ module Ctree
           next
         end
 
-        st, err, vol_bytes = Volume.copy_with_progress(src_vol, tgt_vol)
-        if st.success?
-          volume_copy_bytes += vol_bytes.to_i
-          volume_results << [src_vol, tgt_vol, :copied, ""]
-        else
-          Log.warn_ "copy failed for #{tgt_vol}: #{err.strip}"
-          volume_results << [src_vol, tgt_vol, :failed, "copy failed: #{err.strip}"]
+        copy_targets << [src_vol, tgt_vol]
+      end
+
+      unless copy_targets.empty?
+        copy_concurrency = [config[:volume_copy_concurrency], copy_targets.size].min
+        outcomes = Spinner.with_group(
+          "copying #{copy_targets.size} volumes (#{copy_concurrency} at a time)",
+          concurrency: copy_concurrency
+        ) do |register|
+          copy_targets.each do |src_vol, tgt_vol|
+            register.call("copying #{src_vol} -> #{tgt_vol}") do |report_progress|
+              Volume.copy(src_vol, tgt_vol, report_progress)
+            end
+          end
+        end
+
+        copy_targets.each_with_index do |(src_vol, tgt_vol), index|
+          st, err, vol_bytes = outcomes[index]
+          if st.success?
+            volume_copy_bytes += vol_bytes.to_i
+            volume_results << [src_vol, tgt_vol, :copied, ""]
+          else
+            Log.warn_ "copy failed for #{tgt_vol}: #{err.strip}"
+            volume_results << [src_vol, tgt_vol, :failed, "copy failed: #{err.strip}"]
+          end
         end
       end
 

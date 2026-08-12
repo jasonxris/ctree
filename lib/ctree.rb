@@ -349,7 +349,7 @@ module Ctree
       Log.info "built ctree-rsync image"
     end
 
-    def copy_with_progress(src_vol, tgt_vol)
+    def copy(src_vol, tgt_vol, report_progress)
       # The same container that runs cp -a also samples /to size every 1s
       # and emits a PROGRESS line, so we get real byte-level progress
       # without spawning extra docker invocations.
@@ -381,24 +381,22 @@ module Ctree
 
       Log.debug "copying #{src_vol} -> #{tgt_vol}" unless $stdout.tty?
 
-      Spinner.with_progress("copying #{src_vol} -> #{tgt_vol}") do |report_progress|
-        Sh.popen3(*cmd) do |_stdin, stdout, stderr, wait_thr|
-          err_thread = Thread.new { err_buf << stderr.read.to_s }
+      Sh.popen3(*cmd) do |_stdin, stdout, stderr, wait_thr|
+        err_thread = Thread.new { err_buf << stderr.read.to_s }
 
-          stdout.each_line do |raw|
-            line = raw.strip
-            if line.start_with?("TOTAL:")
-              total_bytes = line.sub("TOTAL:", "").to_i
-            elsif line.start_with?("PROGRESS:")
-              current_bytes = line.sub("PROGRESS:", "").to_i
-            end
-            percent = (total_bytes && total_bytes > 0) ? [(current_bytes.to_f / total_bytes * 100).round, 100].min : 0
-            report_progress.call(percent)
+        stdout.each_line do |raw|
+          line = raw.strip
+          if line.start_with?("TOTAL:")
+            total_bytes = line.sub("TOTAL:", "").to_i
+          elsif line.start_with?("PROGRESS:")
+            current_bytes = line.sub("PROGRESS:", "").to_i
           end
-
-          err_thread.join
-          exit_status = wait_thr.value
+          percent = (total_bytes && total_bytes > 0) ? [(current_bytes.to_f / total_bytes * 100).round, 100].min : 0
+          report_progress.call(percent)
         end
+
+        err_thread.join
+        exit_status = wait_thr.value
       end
 
       elapsed = (Time.now - start_time).to_i
