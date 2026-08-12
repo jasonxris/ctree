@@ -19,8 +19,9 @@ module Ctree
     OPTIONAL_ARRAY_KEYS   = %w[rebase exclude update empty_volumes post_update_hooks].freeze
     STRING_KEYS           = %w[env_filename host_name].freeze
     OPTIONAL_STRING_KEYS  = %w[host_name_suffix compose_override_file host_domain_env_key free_branch_prefix].freeze
+    INTEGER_KEYS          = %w[create_concurrency volume_copy_concurrency].freeze
     VALID_LOG_LEVELS      = %w[info debug].freeze
-    SUPPORTED_KEYS        = (ARRAY_KEYS + OPTIONAL_ARRAY_KEYS + STRING_KEYS + OPTIONAL_STRING_KEYS + %w[log_level]).freeze
+    SUPPORTED_KEYS        = (ARRAY_KEYS + OPTIONAL_ARRAY_KEYS + STRING_KEYS + OPTIONAL_STRING_KEYS + INTEGER_KEYS + %w[log_level]).freeze
 
     def load(source_root)
       # Layered lowest → highest priority. Shipped defaults are always the
@@ -190,6 +191,14 @@ module Ctree
           Log.die "missing or invalid #{key.inspect} in ctree config (check config.yml or #{config_path})"
         end
         result[key.to_sym] = (val || "").dup
+      end
+      INTEGER_KEYS.each do |key|
+        value = merged[key]
+        integer_value = value.is_a?(String) && value.match?(/\A\d+\z/) ? value.to_i : value
+        unless integer_value.is_a?(Integer) && integer_value.positive?
+          Log.die "invalid #{key.inspect} #{value.inspect} in ctree config (check config.yml or #{config_path}); must be a positive integer"
+        end
+        result[key.to_sym] = integer_value
       end
       log_level_val = merged["log_level"]
       if log_level_val.nil?

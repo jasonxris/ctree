@@ -413,7 +413,22 @@ are two layers:
 # Example:
 # skip_env_keys:
 #   - SOME_KEY
+
+# How many worktrees `create` builds at once when given several, and how
+# many volumes it copies at once within one worktree. Positive integers;
+# a digit string works too. Defaults 2 and 4.
+# Example:
+# create_concurrency: 2
+# volume_copy_concurrency: 4
 ```
+
+`volume_copy_concurrency: 1` copies volumes one at a time, which is the
+setting to reach for when you want a single readable progress line per
+volume, or when the machine is short enough on I/O that parallel copies
+only slow each other down. Both keys are worth measuring rather than
+guessing at: every copy in a `create` reads from the same source volumes
+and writes to the same Docker disk, so raising them buys less than the
+multiple suggests.
 
 ### How to configure
 

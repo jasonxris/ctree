@@ -211,5 +211,66 @@ RSpec.describe Ctree::Config do
         }.to raise_error(Ctree::Error, /missing or invalid "free_branch_prefix"/)
       end
     end
+
+    it "defaults create_concurrency and volume_copy_concurrency to Integers" do
+      Dir.mktmpdir do |dir|
+        result = described_class.load(dir)
+        expect(result[:create_concurrency]).to eq(2)
+        expect(result[:volume_copy_concurrency]).to eq(4)
+      end
+    end
+
+    it "repo config overrides one integer key while the other falls back to its default" do
+      Dir.mktmpdir do |dir|
+        write_repo_config(dir, "create_concurrency: 5\n")
+        result = described_class.load(dir)
+        expect(result[:create_concurrency]).to eq(5)
+        expect(result[:volume_copy_concurrency]).to eq(described_class.defaults[:volume_copy_concurrency])
+      end
+    end
+
+    it "normalizes a digit string to an Integer" do
+      Dir.mktmpdir do |dir|
+        write_repo_config(dir, "volume_copy_concurrency: \"4\"\n")
+        result = described_class.load(dir)
+        expect(result[:volume_copy_concurrency]).to eq(4)
+      end
+    end
+
+    it "aborts when volume_copy_concurrency is zero" do
+      Dir.mktmpdir do |dir|
+        write_repo_config(dir, "volume_copy_concurrency: 0\n")
+        expect {
+          described_class.load(dir)
+        }.to raise_error(Ctree::Error, /invalid "volume_copy_concurrency"/)
+      end
+    end
+
+    it "aborts when create_concurrency is negative" do
+      Dir.mktmpdir do |dir|
+        write_repo_config(dir, "create_concurrency: -1\n")
+        expect {
+          described_class.load(dir)
+        }.to raise_error(Ctree::Error, /invalid "create_concurrency"/)
+      end
+    end
+
+    it "aborts when volume_copy_concurrency is not numeric" do
+      Dir.mktmpdir do |dir|
+        write_repo_config(dir, "volume_copy_concurrency: \"abc\"\n")
+        expect {
+          described_class.load(dir)
+        }.to raise_error(Ctree::Error, /invalid "volume_copy_concurrency"/)
+      end
+    end
+
+    it "aborts when create_concurrency is a Float" do
+      Dir.mktmpdir do |dir|
+        write_repo_config(dir, "create_concurrency: 1.5\n")
+        expect {
+          described_class.load(dir)
+        }.to raise_error(Ctree::Error, /invalid "create_concurrency"/)
+      end
+    end
   end
 end

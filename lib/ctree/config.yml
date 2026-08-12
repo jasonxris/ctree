@@ -99,6 +99,13 @@ post_update_hooks: []
 # Default: "FREE-"
 free_branch_prefix: "FREE-"
 
+# Trees built concurrently when `ctree create` is given several worktrees.
+create_concurrency: 2
+
+# Volumes copied concurrently within one tree. Applies to single-tree
+# creates too. Set to 1 for sequential, one-volume-at-a-time output.
+volume_copy_concurrency: 4
+
 # Log verbosity during `ctree create`. 'info' shows one summary line per
 # phase (default). 'debug' shows every per-item action — useful when
 # diagnosing volume or file issues.
