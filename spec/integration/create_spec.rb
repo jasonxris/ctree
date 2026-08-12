@@ -520,6 +520,55 @@ RSpec.describe "Ctree::CLI create" do
     FileUtils.rm_rf(sibling.to_s) if sibling
   end
 
+  it "aborts before writing anything when the copy would not fit on disk" do
+    allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
+    allow(Ctree::Prompt).to receive(:read_line).and_return("n")
+    stub_clonefile
+    stub_sh(docker_capture3: [
+      ["", "", true],                      # docker info
+      ["", "", true],                      # docker ps source
+      ["", "", true],                      # docker images
+      ["src_data\n", "", true],            # docker volume ls -- source has a copyable volume
+      ["", "", true],                      # docker volume ls -- pre-existing snapshot
+      ["10737418240\n1073741824\n", "", true], # docker run -- needs 10GB, 1GB available
+    ])
+
+    expect {
+      expect {
+        Ctree::CLI.run(["create", "wt1", "wt1"])
+      }.to raise_error(Ctree::Error, /not enough free space/)
+    }.to output(/continuing would exhaust the disk/).to_stderr
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force",
+           (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
+  end
+
+  it "proceeds when the copy fits with room to spare" do
+    allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
+    allow(Ctree::Prompt).to receive(:read_line).and_return("n")
+    allow(Ctree::Volume).to receive(:copy_with_progress).and_return([fake_status(true), "", 1024])
+    stub_clonefile
+    stub_sh(docker_capture3: [
+      ["", "", true],                         # docker info
+      ["", "", true],                         # docker ps source
+      ["", "", true],                         # docker images
+      ["src_data\n", "", true],               # docker volume ls -- source has a copyable volume
+      ["", "", true],                         # docker volume ls -- pre-existing snapshot
+      ["1024\n107374182400\n", "", true],     # docker run -- needs 1KB, 100GB available
+      ["web\n", "", true],                    # docker compose config --services
+      ["", "", true],                         # docker compose up --no-start --no-build web
+      ["", "", true],                         # docker compose down
+    ])
+
+    expect {
+      Ctree::CLI.run(["create", "wt1", "wt1"])
+    }.not_to raise_error
+    expect(Ctree::Volume).to have_received(:copy_with_progress).with("src_data", "wt1_data")
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force",
+           (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
+  end
+
   it "creates empty volumes for suffixes listed in empty_volumes without copying" do
     FileUtils.mkdir_p((@work / ".ctree").to_s)
     File.write((@work / ".ctree" / "config.yml").to_s,

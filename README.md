@@ -93,6 +93,25 @@ For each constant defined in the source `.env` you will be prompted
 to either accept or update the value for the worktree. Values for
 secret-looking keys are never printed — see [Secret values](#secret-values).
 
+#### Free space preflight
+
+Volume replication can move tens of gigabytes, so before writing anything
+`create` measures the volumes it is about to copy and the space available
+to receive them, and aborts if the copy would not leave 5GB free:
+
+```
+⚠️ copying 9.1GB of volumes needs 14.1GB free
+⚠️ docker has 3.2GB available
+⚠️ continuing would exhaust the disk and crash containers in every running stack
+```
+
+The available figure is read with `df` from inside a container, which
+reports what an ordinary process can write. This matters: ext4 keeps a
+root-only reserve (5% by default), so ctree's root-owned copy can run to
+completion and report success while every non-root writer on the host —
+postgres in particular — is already failing with `No space left on
+device`. Without the preflight, one `create` can silently take down the
+databases of every other stack on the machine.
 
 ### delete
 

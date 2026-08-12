@@ -403,6 +403,25 @@ module Ctree
       all_vols_out, _, _ = Sh.capture3("docker", "volume", "ls", "--format", "{{.Name}}")
       pre_existing_vols = all_vols_out.lines.map(&:strip).freeze
 
+      copy_candidates = source_volumes.reject do |src_vol|
+        suffix = src_vol.sub(prefix_re, "")
+        share_volumes.include?(suffix) || empty_volumes.include?(suffix) ||
+          pre_existing_vols.include?("#{target_project}_#{suffix}")
+      end
+
+      unless copy_candidates.empty?
+        needed_bytes, available_bytes = Spinner.with_spinner("checking free space") do
+          Volume.copy_budget(copy_candidates)
+        end
+        if needed_bytes && available_bytes < needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
+          required = needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
+          Log.warn_ "copying #{Sizes.human(needed_bytes)} of volumes needs #{Sizes.human(required)} free"
+          Log.warn_ "docker has #{Sizes.human(available_bytes)} available"
+          Log.warn_ "continuing would exhaust the disk and crash containers in every running stack"
+          Log.die "not enough free space; reclaim space (e.g. `docker builder prune -af`) and retry"
+        end
+      end
+
       # Let Compose create all non-external volumes with its ownership labels
       # so `docker compose up` later doesn't warn about externally managed volumes.
       #

@@ -289,8 +289,25 @@ module Ctree
 
   module Volume
     RSYNC_IMAGE = "ctree-rsync:1"
+    COPY_FREE_SPACE_FLOOR = 5 * 1024**3
 
     module_function
+
+    def copy_budget(volumes)
+      return nil if volumes.empty?
+
+      mounts = volumes.each_with_index.flat_map { |volume, index| ["-v", "#{volume}:/vol/#{index}:ro"] }
+      out, _, status = Sh.capture3(
+        "docker", "run", "--rm", *mounts, "alpine", "sh", "-c",
+        "du -sb /vol | cut -f1; df -PB1 /vol/0 | tail -1 | awk '{print $4}'"
+      )
+      return nil unless status.success?
+
+      needed, available = out.lines.map { |line| line.strip.to_i }
+      return nil unless needed.to_i > 0 && available.to_i > 0
+
+      [needed, available]
+    end
 
     def ensure_rsync_image!
       _, _, st = Sh.capture3("docker", "image", "inspect", RSYNC_IMAGE)
