@@ -640,6 +640,27 @@ RSpec.describe "Ctree::CLI create" do
     ]
   end
 
+  it "asks every question before creating anything, so the copy runs unattended" do
+    sibling = @work.parent / "wt1"
+    existence_at_each_prompt = []
+    allow(Ctree::Prompt).to receive(:read_line) do
+      existence_at_each_prompt << sibling.exist?
+      ""
+    end
+    stub_clonefile
+    allow(Ctree::Volume).to receive(:copy).and_return([fake_status(true), "", 1024])
+    stub_sh(docker_capture3: three_copyable_volumes_stubs)
+
+    Ctree::CLI.run(["create", "wt1", "wt1"])
+
+    expect(existence_at_each_prompt).not_to be_empty
+    expect(existence_at_each_prompt).to all(be(false))
+    expect(sibling).to be_directory
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force", sibling.to_s,
+           out: File::NULL, err: File::NULL)
+  end
+
   it "copies at most volume_copy_concurrency volumes at once" do
     FileUtils.mkdir_p((@work / ".ctree").to_s)
     File.write((@work / ".ctree" / "config.yml").to_s, "volume_copy_concurrency: 2\n")

@@ -87,15 +87,24 @@ worktree in one operation. On macOS APFS this is near-instant CoW via
 `clonefile(2)`; on Linux, `cp --reflink=auto` provides the same for
 btrfs/xfs and falls back to a plain copy on ext4.
 
+**Every question comes first.** `create` asks everything it needs — stash
+and switch to master, stop the source stack, what to do about the `.env`,
+whether to rebase a stale branch — before it creates anything at all. Once
+the copying starts there is nothing left to answer, so you can walk away
+from it. The questions used to arrive partway through, minutes into a
+volume copy.
+
+The `.env` question is one question: the constants from the source `.env`
+are listed by name and `create` asks whether to copy them all from the
+source — the usual answer, and a single keypress. Decline and it walks
+them one at a time instead, so you can give the worktree its own value
+for any of them (a different `DB_PORT`, say), showing what each sibling
+worktree already uses. Values for secret-looking keys are never printed —
+see [Secret values](#secret-values).
+
 After the cloning, docker volumes are replicated under the new compose
-prefix and a tailored `.env` is written with `COMPOSE_PROJECT_NAME`.
-The remaining constants from the source `.env` are listed by name and
-`create` asks once whether to copy them all from the source — the usual
-answer, and a single keypress. Decline and it walks them one at a time
-instead, so you can give the worktree its own value for any of them
-(a different `DB_PORT`, say), showing what each sibling worktree already
-uses. Values for secret-looking keys are never printed — see
-[Secret values](#secret-values).
+prefix, `volume_copy_concurrency` at a time, and a tailored `.env` is
+written with `COMPOSE_PROJECT_NAME` plus the answers collected up front.
 
 #### Free space preflight
 

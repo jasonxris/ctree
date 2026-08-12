@@ -154,6 +154,65 @@ module Ctree
         end
       end
 
+      # COMPOSE_PROJECT_NAME is always auto-set to the target project name.
+      # config[:host_name] specifies which .env variable is auto-set to the
+      # worktree name (for domain routing). Keys in config[:skip_env_keys] are
+      # also auto-set from source. All others are presented interactively.
+      host_env_key = config[:host_name]
+      suffix = config[:host_name_suffix].to_s
+      host_domain_env_key = config[:host_domain_env_key].to_s
+      effective_skip_keys = config[:skip_env_keys].reject { |k| k == host_domain_env_key }
+      auto_set = (["COMPOSE_PROJECT_NAME", "COMPOSE_FILE", host_env_key, "HOST_NAME_SUFFIX"] +
+                  (host_domain_env_key.empty? ? [] : [host_domain_env_key]) +
+                  effective_skip_keys).freeze
+      promptable = source_env_vars.reject { |k, v| auto_set.include?(k) || v.nil? || v.empty? }
+
+      # Collect sibling worktree .env values so the prompt can show what each
+      # worktree already has, helping the user pick non-conflicting values.
+      sibling_envs = {}
+      wt_out, _, wt_st = Sh.capture3("git", "-C", source_root.to_s, "worktree", "list", "--porcelain")
+      if wt_st.success?
+        source_real = source_root.realpath
+        wt_out.each_line do |line|
+          next unless line.start_with?("worktree ")
+          wt_path = Pathname.new(line.strip.delete_prefix("worktree "))
+          wt_real = begin; wt_path.realpath; rescue Errno::ENOENT; wt_path; end
+          next if wt_real == source_real
+          env_path = wt_path / env_filename
+          sibling_envs[wt_path.basename.to_s] = EnvFile.parse(env_path.to_s) if env_path.file?
+        end
+      end
+
+      env_answers = {}
+      unless promptable.empty?
+        Log.line
+        if Prompt.copy_all_env?(promptable.keys, env_filename)
+          promptable.each { |key, value| env_answers[key] = value }
+        else
+          promptable.each do |key, value|
+            worktree_values = sibling_envs.filter_map { |wt, env| [wt, env[key]] if env[key] }.to_h
+            env_answers[key] = Prompt.for_env_var_change(key, value, worktree_values: worktree_values)
+          end
+        end
+      end
+
+      rebase_onto_master = false
+      if branch_exists
+        behind_out, _, behind_st = Sh.capture3(
+          "git", "-C", source_root.to_s, "rev-list", "--count", "#{branch}..master"
+        )
+        behind = behind_st.success? ? behind_out.strip.to_i : 0
+        if behind > 0
+          Log.warn_ "branch '#{branch}' is #{behind} commit(s) behind master"
+          Log.warn_ "its lockfiles may not match the replicated gem/package"
+          Log.warn_ "volumes, which can prevent the stack from booting"
+          raw = Prompt.read_line("rebase '#{branch}' onto master now? [Y/n]: ")
+          answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
+          rebase_onto_master = answer.empty? || answer == "y" || answer == "yes"
+          Log.info "skipped rebase; run `ctree rebase` from the worktree later if needed" unless rebase_onto_master
+        end
+      end
+
       # === register worktree + clone all source content ===
       # git worktree add --no-checkout creates an empty target dir with a
       # .git FILE pointer but skips the file checkout. We then clone every
@@ -552,18 +611,6 @@ module Ctree
         Log.info "source has no #{env_filename}; creating one in target"
       end
 
-      # COMPOSE_PROJECT_NAME is always auto-set to the target project name.
-      # config[:host_name] specifies which .env variable is auto-set to the
-      # worktree name (for domain routing). Keys in config[:skip_env_keys] are
-      # also auto-set from source. All others are presented interactively.
-      host_env_key = config[:host_name]
-      suffix = config[:host_name_suffix].to_s
-      host_domain_env_key = config[:host_domain_env_key].to_s
-      effective_skip_keys = config[:skip_env_keys].reject { |k| k == host_domain_env_key }
-      auto_set = (["COMPOSE_PROJECT_NAME", "COMPOSE_FILE", host_env_key, "HOST_NAME_SUFFIX"] +
-                  (host_domain_env_key.empty? ? [] : [host_domain_env_key]) +
-                  effective_skip_keys).freeze
-
       cpn_action = EnvFile.upsert(tgt_env_path.to_s, "COMPOSE_PROJECT_NAME", target_project)
       Log.debug "COMPOSE_PROJECT_NAME=#{target_project} (#{cpn_action}) in #{tgt_env_path}"
 
@@ -586,45 +633,13 @@ module Ctree
       unless host_domain_env_key.empty? || suffix.empty?
         final_env_vars[host_domain_env_key] = "#{name}.#{suffix}"
       end
-      promptable = source_env_vars.reject { |k, v| auto_set.include?(k) || v.nil? || v.empty? }
-
-      # Collect sibling worktree .env values so the prompt can show what each
-      # worktree already has, helping the user pick non-conflicting values.
-      sibling_envs = {}
-      wt_out, _, wt_st = Sh.capture3("git", "-C", source_root.to_s, "worktree", "list", "--porcelain")
-      if wt_st.success?
-        source_real = source_root.realpath
-        target_real = begin; target_path.realpath; rescue Errno::ENOENT; target_path; end
-        wt_out.each_line do |line|
-          next unless line.start_with?("worktree ")
-          wt_path = Pathname.new(line.strip.delete_prefix("worktree "))
-          wt_real = begin; wt_path.realpath; rescue Errno::ENOENT; wt_path; end
-          next if wt_real == source_real || wt_real == target_real
-          env_path = wt_path / env_filename
-          sibling_envs[wt_path.basename.to_s] = EnvFile.parse(env_path.to_s) if env_path.file?
-        end
-      end
-
-      unless promptable.empty?
-        Log.line
-        if Prompt.copy_all_env?(promptable.keys, env_filename)
-          promptable.each do |key, value|
-            final_env_vars[key] = value
-            Log.debug "#{Secrets.pair(key, value)} (copied from source) in #{tgt_env_path}"
-          end
+      env_answers.each do |key, value|
+        final_env_vars[key] = value
+        if value == source_env_vars[key]
+          Log.debug "#{Secrets.pair(key, value)} (kept from source) in #{tgt_env_path}"
         else
-          promptable.each do |key, value|
-            worktree_values = sibling_envs.filter_map { |wt, env| [wt, env[key]] if env[key] }.to_h
-            new_value = Prompt.for_env_var_change(key, value, worktree_values: worktree_values)
-            final_env_vars[key] = new_value
-
-            if new_value != value
-              action = EnvFile.upsert(tgt_env_path.to_s, key, new_value)
-              Log.debug "#{Secrets.pair(key, new_value)} (#{action}) in #{tgt_env_path}"
-            else
-              Log.debug "#{Secrets.pair(key, value)} (kept) in #{tgt_env_path}"
-            end
-          end
+          action = EnvFile.upsert(tgt_env_path.to_s, key, value)
+          Log.debug "#{Secrets.pair(key, value)} (#{action}) in #{tgt_env_path}"
         end
       end
 
@@ -663,36 +678,21 @@ module Ctree
 
       any_failed = volume_results.any? { |_, _, st, _| st == :failed }
 
-      # === offer to rebase a stale existing branch onto master ===
+      # === rebase a stale existing branch onto master ===
       # Worktree runtime state (gem/package volumes and their lockfiles) is
       # replicated from the source's master. An existing branch that is behind
       # master can have tracked lockfiles that no longer match the copied state,
-      # which can prevent the stack from booting. Offer to rebase onto master
-      # before the user moves into the worktree.
-      if branch_exists
-        behind_out, _, behind_st = Sh.capture3(
-          "git", "-C", target_path.to_s, "rev-list", "--count", "HEAD..master"
-        )
-        behind = behind_st.success? ? behind_out.strip.to_i : 0
-        if behind > 0
-          Log.warn_ "branch '#{branch}' is #{behind} commit(s) behind master"
-          Log.warn_ "its lockfiles may not match the replicated gem/package"
-          Log.warn_ "volumes, which can prevent the stack from booting"
-          raw = Prompt.read_line("rebase '#{branch}' onto master now? [Y/n]: ")
-          answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
-          if answer.empty? || answer == "y" || answer == "yes"
-            _, _, rb_st = Spinner.with_spinner("rebasing #{branch} onto master") do
-              Sh.capture3("git", "-C", target_path.to_s, "rebase", "master")
-            end
-            if rb_st.success?
-              Log.info "rebased #{branch} onto master"
-            else
-              Sh.capture3("git", "-C", target_path.to_s, "rebase", "--abort")
-              Log.warn_ "rebase conflict — aborted; resolve manually with `ctree rebase` from the worktree"
-            end
-          else
-            Log.info "skipped rebase; run `ctree rebase` from the worktree later if needed"
-          end
+      # which can prevent the stack from booting. The decision was taken during
+      # the preflight, before anything was created.
+      if rebase_onto_master
+        _, _, rb_st = Spinner.with_spinner("rebasing #{branch} onto master") do
+          Sh.capture3("git", "-C", target_path.to_s, "rebase", "master")
+        end
+        if rb_st.success?
+          Log.info "rebased #{branch} onto master"
+        else
+          Sh.capture3("git", "-C", target_path.to_s, "rebase", "--abort")
+          Log.warn_ "rebase conflict — aborted; resolve manually with `ctree rebase` from the worktree"
         end
       end
 
