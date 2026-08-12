@@ -17,6 +17,91 @@ module Ctree
         Log.die "refusing to remove '#{name}' — that's the current source project itself"
       end
 
+      discovery = discover(name: name, source_root: source_root)
+      target_project = discovery[:target_project]
+      target_path = discovery[:target_path]
+      worktree_registered = discovery[:worktree_registered]
+      shared_external_vols = discovery[:shared_external_vols]
+      vols = discovery[:vols]
+      containers = discovery[:containers]
+      tagged_images = discovery[:tagged_images]
+      branch_exists = discovery[:branch_exists]
+      branch_to_check = discovery[:branch_to_check]
+
+      if discovery[:nothing_to_do]
+        Log.info "nothing to remove for '#{name}' — no worktree, branch, containers, or volumes found"
+        return
+      end
+
+      # Show the user exactly what will happen.
+      Log.line
+      Log.info "About to delete '#{name}':"
+      Log.line
+      Log.line "  worktree path:  #{target_path}"
+      Log.line "    - dir:        #{target_path.exist? ? "EXISTS — will be deleted" : "absent"}"
+      Log.line "    - registered: #{worktree_registered ? "YES — will run `git worktree remove --force`" : "no"}"
+      Log.line
+      if branch_exists
+        Log.line "  git branch:     #{branch_to_check}  — preserved (run `git branch -D #{branch_to_check}` manually to delete)"
+      else
+        Log.line "  git branch:     #{branch_to_check}  — not found"
+      end
+      Log.line
+      Log.line "  compose stack:  -p #{target_project}"
+      if containers.empty?
+        Log.line "    - containers: none running for this project"
+      else
+        Log.line "    - containers (will be stopped and removed via `docker compose down`):"
+        containers.each { |c| Log.line "        #{c}" }
+      end
+      Log.line
+      if vols.empty?
+        Log.line "  docker volumes: none matching ^#{target_project}_"
+      else
+        Log.line "  docker volumes (#{vols.size}, all will be PERMANENTLY deleted):"
+        vols.each { |v| Log.line "        #{v}" }
+      end
+      Log.line
+      unless shared_external_vols.empty?
+        Log.line "  shared volumes (mounted from source via override yml; will NOT be touched):"
+        shared_external_vols.sort.each { |v| Log.line "        #{v}" }
+        Log.line
+      end
+      if tagged_images.empty?
+        Log.line "  docker images:  no tags matching #{target_project}-*"
+      else
+        Log.line "  docker image tags (#{tagged_images.size}, tags will be deleted — image layers preserved):"
+        tagged_images.each { |img| Log.line "        #{img}" }
+      end
+      Log.line
+      Log.line "  Source project (#{source_root}) will NOT be touched."
+      Log.line
+
+      raw = Prompt.read_line("Type 'yes' to confirm deletion of '#{name}': ")
+      answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip
+      unless answer == "yes"
+        Log.warn_ "aborted: confirmation not given (received #{answer.inspect}, expected 'yes'). No changes made."
+        raise ExitStatus.new(1)
+      end
+
+      failures = remove!(discovery)
+
+      # Branches are intentionally preserved — see the README "remove"
+      # section for rationale. Even an auto-derived branch (created when
+      # `ctree add` is called without an explicit branch name) can carry
+      # commits the user wants to keep, push, or merge later. To clean up
+      # an orphan, run `git branch -D <name>` manually.
+
+      Log.line
+      if failures.empty?
+        Log.info "deletion complete for '#{name}'"
+      else
+        Log.warn_ "removal completed with failures: #{failures.join(", ")}"
+        raise ExitStatus.new(2)
+      end
+    end
+
+    def discover(name:, source_root:)
       parent_dir = source_root.parent
       target_project = Naming.sanitize_compose_project_name(name)
 
@@ -108,63 +193,33 @@ module Ctree
       # Branches are never deleted by remove (see below), so the presence
       # of a same-named branch alone is not a reason to do work.
       nothing_to_do = vols.empty? && containers.empty? && tagged_images.empty? && !worktree_registered && !target_path.exist?
-      if nothing_to_do
-        Log.info "nothing to remove for '#{name}' — no worktree, branch, containers, or volumes found"
-        return
-      end
 
-      # Show the user exactly what will happen.
-      Log.line
-      Log.info "About to delete '#{name}':"
-      Log.line
-      Log.line "  worktree path:  #{target_path}"
-      Log.line "    - dir:        #{target_path.exist? ? "EXISTS — will be deleted" : "absent"}"
-      Log.line "    - registered: #{worktree_registered ? "YES — will run `git worktree remove --force`" : "no"}"
-      Log.line
-      if branch_exists
-        Log.line "  git branch:     #{branch_to_check}  — preserved (run `git branch -D #{branch_to_check}` manually to delete)"
-      else
-        Log.line "  git branch:     #{branch_to_check}  — not found"
-      end
-      Log.line
-      Log.line "  compose stack:  -p #{target_project}"
-      if containers.empty?
-        Log.line "    - containers: none running for this project"
-      else
-        Log.line "    - containers (will be stopped and removed via `docker compose down`):"
-        containers.each { |c| Log.line "        #{c}" }
-      end
-      Log.line
-      if vols.empty?
-        Log.line "  docker volumes: none matching ^#{target_project}_"
-      else
-        Log.line "  docker volumes (#{vols.size}, all will be PERMANENTLY deleted):"
-        vols.each { |v| Log.line "        #{v}" }
-      end
-      Log.line
-      unless shared_external_vols.empty?
-        Log.line "  shared volumes (mounted from source via override yml; will NOT be touched):"
-        shared_external_vols.sort.each { |v| Log.line "        #{v}" }
-        Log.line
-      end
-      if tagged_images.empty?
-        Log.line "  docker images:  no tags matching #{target_project}-*"
-      else
-        Log.line "  docker image tags (#{tagged_images.size}, tags will be deleted — image layers preserved):"
-        tagged_images.each { |img| Log.line "        #{img}" }
-      end
-      Log.line
-      Log.line "  Source project (#{source_root}) will NOT be touched."
-      Log.line
+      {
+        source_root: source_root,
+        target_project: target_project,
+        target_path: target_path,
+        target_real: target_real,
+        worktree_registered: worktree_registered,
+        docker_ok: docker_ok,
+        shared_external_vols: shared_external_vols,
+        vols: vols,
+        containers: containers,
+        tagged_images: tagged_images,
+        branch_exists: branch_exists,
+        branch_to_check: branch_to_check,
+        nothing_to_do: nothing_to_do
+      }
+    end
 
-      raw = Prompt.read_line("Type 'yes' to confirm deletion of '#{name}': ")
-      answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip
-      unless answer == "yes"
-        Log.warn_ "aborted: confirmation not given (received #{answer.inspect}, expected 'yes'). No changes made."
-        raise ExitStatus.new(1)
-      end
-
-      # === execute ===
+    def remove!(discovery)
+      source_root = discovery[:source_root]
+      target_project = discovery[:target_project]
+      target_path = discovery[:target_path]
+      worktree_registered = discovery[:worktree_registered]
+      docker_ok = discovery[:docker_ok]
+      containers = discovery[:containers]
+      tagged_images = discovery[:tagged_images]
+      vols = discovery[:vols]
 
       failures = []
 
@@ -281,19 +336,7 @@ module Ctree
         failures << "worktree remove" if remove_failed
       end
 
-      # Branches are intentionally preserved — see the README "remove"
-      # section for rationale. Even an auto-derived branch (created when
-      # `ctree add` is called without an explicit branch name) can carry
-      # commits the user wants to keep, push, or merge later. To clean up
-      # an orphan, run `git branch -D <name>` manually.
-
-      Log.line
-      if failures.empty?
-        Log.info "deletion complete for '#{name}'"
-      else
-        Log.warn_ "removal completed with failures: #{failures.join(", ")}"
-        raise ExitStatus.new(2)
-      end
+      failures
     end
 
     # Builds a unique sibling path adjacent to target_path used as the

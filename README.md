@@ -508,11 +508,26 @@ ctree is designed to be embedded by another CLI (for example an
 directly — `Ctree::Create.run(name:, branch:)`, `Ctree::Delete.run(name:)`,
 `Ctree::List.run(filter:)`, `Ctree::Update.run`, `Ctree::Rebase.run`,
 `Ctree::Free.run`, `Ctree::EnvCmd.run(subcommand)`,
-`Ctree::ComposeConfigCmd.run(subcommand)`, and the `Ctree::Config`
+`Ctree::ComposeConfigCmd.run(subcommand)`,
+`Ctree::Create.rollback(name:, delete_branch:)`, and the `Ctree::Config`
 module functions. `Ctree::CLI.run(argv)` exists for the standalone
 binary; embedders should call the modules and do their own argument
 parsing. Most commands assume `Dir.pwd` is the relevant repo top-level
 and validate it themselves.
+
+`Create.rollback` is a non-interactive teardown for a create that failed
+partway. It never calls `Ctree::Prompt` and never raises `Ctree::Error`
+or `Ctree::ExitStatus`: it is meant to run from a failure path, possibly
+from a worker thread, where there is nobody to confirm anything and
+where raising would bury the original failure. Cleanup steps that fail
+are warned and returned as a list of what was left behind — empty means
+clean — so a rollback that cannot finish still reports honestly instead
+of dying halfway. Pass `delete_branch: true` only when the caller knows
+ctree created that branch during this create; a branch the user brought
+may carry commits worth keeping and is never deleted. `Delete.run`
+cannot serve this purpose directly, because it blocks on a typed `yes`
+confirmation; the shared teardown lives in `Delete.discover` and
+`Delete.remove!`, which `run` and `rollback` both call.
 
 **Exceptions, never exits.** Nothing under `lib/` calls `Kernel#exit`.
 Failures with a message raise `Ctree::Error` (carrying `exit_code`);

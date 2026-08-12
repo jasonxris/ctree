@@ -675,5 +675,36 @@ module Ctree
 
       raise ExitStatus.new(2) if any_failed
     end
+
+    def rollback(name:, delete_branch:)
+      source_root = Pathname.pwd
+      failures = []
+
+      begin
+        discovery = Delete.discover(name: name, source_root: source_root)
+        failures.concat(Delete.remove!(discovery))
+
+        if delete_branch && discovery[:branch_exists]
+          _, branch_delete_error, branch_delete_status = Sh.capture3(
+            "git", "-C", source_root.to_s, "branch", "-D", discovery[:branch_to_check]
+          )
+          unless branch_delete_status.success?
+            Log.warn_ "failed to delete branch #{discovery[:branch_to_check]}: #{branch_delete_error.strip}"
+            failures << "branch delete"
+          end
+        end
+      rescue StandardError => error
+        Log.warn_ "rollback of '#{name}' hit an unexpected error: #{error.message}"
+        failures << "rollback error: #{error.message}"
+      end
+
+      if failures.empty?
+        Log.info "rolled back '#{name}'"
+      else
+        Log.warn_ "rollback of '#{name}' left resources behind: #{failures.join(", ")}; clean up manually"
+      end
+
+      failures
+    end
   end
 end
