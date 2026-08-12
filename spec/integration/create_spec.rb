@@ -85,6 +85,27 @@ RSpec.describe "Ctree::CLI create" do
            out: File::NULL, err: File::NULL)
   end
 
+  it "asks nothing per variable when the copy-all answer is accepted" do
+    allow(Ctree::Prompt).to receive(:for_env_var_change).and_call_original
+    allow(Ctree::Prompt).to receive(:read_line).and_return("")
+    stub_clonefile
+    stub_sh(docker_capture3: docker_stubs)
+
+    expect {
+      Ctree::CLI.run(["create", "wt-copyall", "wt-copyall"])
+    }.not_to raise_error
+
+    expect(Ctree::Prompt).not_to have_received(:for_env_var_change)
+
+    sibling = @work.parent / "wt-copyall"
+    env_content = (sibling / ".env").read
+    expect(env_content).to include("COMPOSE_PROJECT_NAME=wt-copyall")
+    expect(env_content).to include("DB_PORT=5432")
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force", sibling.to_s,
+           out: File::NULL, err: File::NULL)
+  end
+
   it "brings up each compose service individually rather than all at once" do
     allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
     allow(Ctree::Prompt).to receive(:read_line).and_return("n")

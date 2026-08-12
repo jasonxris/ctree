@@ -56,6 +56,43 @@ RSpec.describe Ctree::Prompt do
     backend.calls.map { |call| call[1].to_s }.join("\n")
   end
 
+  describe ".copy_all_env?" do
+    it "treats an empty answer as yes, so the common case is one keypress" do
+      backend.typed = ""
+      expect(described_class.copy_all_env?(%w[INST_DOMAIN DB_PORT], ".env")).to be(true)
+    end
+
+    it "accepts y and yes in any case" do
+      backend.typed = "y"
+      expect(described_class.copy_all_env?(%w[INST_DOMAIN], ".env")).to be(true)
+      backend.typed = "YES"
+      expect(described_class.copy_all_env?(%w[INST_DOMAIN], ".env")).to be(true)
+    end
+
+    it "declines on n, which routes the caller to per-variable prompts" do
+      backend.typed = "n"
+      expect(described_class.copy_all_env?(%w[INST_DOMAIN], ".env")).to be(false)
+    end
+
+    it "treats a nil answer as yes, since backends differ on EOF" do
+      backend.typed = nil
+      expect(described_class.copy_all_env?(%w[INST_DOMAIN], ".env")).to be(true)
+    end
+
+    it "names the keys and the env filename, and prints no values" do
+      backend.typed = ""
+      described_class.copy_all_env?(%w[INST_DOMAIN ARTIFACTORY_TOKEN], ".env.local")
+      expect(emitted).to include("INST_DOMAIN", "ARTIFACTORY_TOKEN", ".env.local")
+      expect(emitted).to include("2 .env.local values")
+    end
+
+    it "counts a single value in the singular" do
+      backend.typed = ""
+      described_class.copy_all_env?(%w[INST_DOMAIN], ".env")
+      expect(emitted).to include("1 .env value to set")
+    end
+  end
+
   describe ".for_env_var_change" do
     it "prints the value for a non-secret key" do
       described_class.for_env_var_change("INST_DOMAIN", "inseng.test")

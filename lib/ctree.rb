@@ -277,6 +277,13 @@ module Ctree
       end
     end
 
+    def copy_all_env?(keys, env_filename)
+      Log.info "#{keys.length} #{env_filename} #{(keys.length == 1) ? "value" : "values"} to set: #{keys.join(", ")}"
+      raw = read_line("Copy all of them from the source #{env_filename}? [Y/n]: ")
+      answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
+      answer.empty? || answer == "y" || answer == "yes"
+    end
+
     # Generic prompt for any .env variable. Prints the key as a log line then
     # prompts on a short second line — avoids Readline redraw artifacts caused
     # by prompts longer than the terminal width. Values for secret-looking keys

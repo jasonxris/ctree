@@ -591,16 +591,23 @@ module Ctree
 
       unless promptable.empty?
         Log.line
-        promptable.each do |key, value|
-          worktree_values = sibling_envs.filter_map { |wt, env| [wt, env[key]] if env[key] }.to_h
-          new_value = Prompt.for_env_var_change(key, value, worktree_values: worktree_values)
-          final_env_vars[key] = new_value
+        if Prompt.copy_all_env?(promptable.keys, env_filename)
+          promptable.each do |key, value|
+            final_env_vars[key] = value
+            Log.debug "#{Secrets.pair(key, value)} (copied from source) in #{tgt_env_path}"
+          end
+        else
+          promptable.each do |key, value|
+            worktree_values = sibling_envs.filter_map { |wt, env| [wt, env[key]] if env[key] }.to_h
+            new_value = Prompt.for_env_var_change(key, value, worktree_values: worktree_values)
+            final_env_vars[key] = new_value
 
-          if new_value != value
-            action = EnvFile.upsert(tgt_env_path.to_s, key, new_value)
-            Log.debug "#{Secrets.pair(key, new_value)} (#{action}) in #{tgt_env_path}"
-          else
-            Log.debug "#{Secrets.pair(key, value)} (kept) in #{tgt_env_path}"
+            if new_value != value
+              action = EnvFile.upsert(tgt_env_path.to_s, key, new_value)
+              Log.debug "#{Secrets.pair(key, new_value)} (#{action}) in #{tgt_env_path}"
+            else
+              Log.debug "#{Secrets.pair(key, value)} (kept) in #{tgt_env_path}"
+            end
           end
         end
       end

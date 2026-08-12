@@ -89,9 +89,13 @@ btrfs/xfs and falls back to a plain copy on ext4.
 
 After the cloning, docker volumes are replicated under the new compose
 prefix and a tailored `.env` is written with `COMPOSE_PROJECT_NAME`.
-For each constant defined in the source `.env` you will be prompted
-to either accept or update the value for the worktree. Values for
-secret-looking keys are never printed — see [Secret values](#secret-values).
+The remaining constants from the source `.env` are listed by name and
+`create` asks once whether to copy them all from the source — the usual
+answer, and a single keypress. Decline and it walks them one at a time
+instead, so you can give the worktree its own value for any of them
+(a different `DB_PORT`, say), showing what each sibling worktree already
+uses. Values for secret-looking keys are never printed — see
+[Secret values](#secret-values).
 
 #### Free space preflight
 
