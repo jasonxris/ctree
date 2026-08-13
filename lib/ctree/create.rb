@@ -2,9 +2,48 @@
 
 module Ctree
   module Create
+    Preparation = Struct.new(
+      :source_root,
+      :config,
+      :share_volumes,
+      :empty_volumes,
+      :exclude,
+      :env_filename,
+      :source_basename,
+      :source_project,
+      :source_env_vars,
+      :source_volumes,
+      :pre_existing_vols,
+      :prefix_re,
+      :host_env_key,
+      :host_name_suffix,
+      :host_domain_env_key,
+      :env_answers,
+      keyword_init: true
+    )
+
+    TreePlan = Struct.new(
+      :name,
+      :branch,
+      :branch_exists,
+      :target_project,
+      :target_path,
+      :rebase_onto_master,
+      keyword_init: true
+    )
+
     module_function
 
     def run(name:, branch:)
+      preparation, tree_plans = prepare(trees: [{ name: name, branch: branch }])
+      build(preparation, tree_plans.first)
+    end
+
+    def prepare(trees:)
+      tree = trees.first
+      name = tree[:name]
+      branch = tree[:branch]
+
       source_root = Pathname.pwd
       toplevel_out, _, status = Sh.capture3("git", "-C", source_root.to_s, "rev-parse", "--show-toplevel")
       Log.die "not inside a git repository" unless status.success?
@@ -212,6 +251,63 @@ module Ctree
           Log.info "skipped rebase; run `ctree rebase` from the worktree later if needed" unless rebase_onto_master
         end
       end
+
+      [
+        Preparation.new(
+          source_root: source_root,
+          config: config,
+          share_volumes: share_volumes,
+          empty_volumes: empty_volumes,
+          exclude: exclude,
+          env_filename: env_filename,
+          source_basename: source_basename,
+          source_project: source_project,
+          source_env_vars: source_env_vars,
+          source_volumes: source_volumes,
+          pre_existing_vols: pre_existing_vols,
+          prefix_re: prefix_re,
+          host_env_key: host_env_key,
+          host_name_suffix: host_name_suffix,
+          host_domain_env_key: host_domain_env_key,
+          env_answers: env_answers
+        ),
+        [
+          TreePlan.new(
+            name: name,
+            branch: branch,
+            branch_exists: branch_exists,
+            target_project: target_project,
+            target_path: target_path,
+            rebase_onto_master: rebase_onto_master
+          )
+        ]
+      ]
+    end
+
+    def build(preparation, tree_plan)
+      source_root = preparation.source_root
+      config = preparation.config
+      share_volumes = preparation.share_volumes
+      empty_volumes = preparation.empty_volumes
+      exclude = preparation.exclude
+      env_filename = preparation.env_filename
+      source_basename = preparation.source_basename
+      source_project = preparation.source_project
+      source_env_vars = preparation.source_env_vars
+      source_volumes = preparation.source_volumes
+      pre_existing_vols = preparation.pre_existing_vols
+      prefix_re = preparation.prefix_re
+      host_env_key = preparation.host_env_key
+      host_name_suffix = preparation.host_name_suffix
+      host_domain_env_key = preparation.host_domain_env_key
+      env_answers = preparation.env_answers
+
+      name = tree_plan.name
+      branch = tree_plan.branch
+      branch_exists = tree_plan.branch_exists
+      target_project = tree_plan.target_project
+      target_path = tree_plan.target_path
+      rebase_onto_master = tree_plan.rebase_onto_master
 
       # === register worktree + clone all source content ===
       # git worktree add --no-checkout creates an empty target dir with a
