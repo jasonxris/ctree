@@ -181,6 +181,17 @@ RSpec.describe Ctree::UI do
     expect(finished).to eq([:survivor])
   end
 
+  it "raises rather than returning a placeholder when a with_group task aborts outside StandardError" do
+    Ctree.ui_backend = Ctree::UI::PlainBackend.new
+
+    expect do
+      Ctree::Spinner.with_group("aborting", concurrency: 2) do |register|
+        register.call("interrupted") { raise Interrupt, "ctrl-c" }
+        register.call("survivor") { :survivor }
+      end
+    end.to raise_error(Interrupt)
+  end
+
   describe Ctree::UI::PlainBackend do
     it "prints info lines with the ctree prefix" do
       expect { Ctree::Log.info "hello" }.to output("[ctree] hello\n").to_stdout

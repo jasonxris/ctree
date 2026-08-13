@@ -614,10 +614,17 @@ end
 # => one value per registered task, in registration order
 ```
 
-A `group` implementation MUST return the task blocks' values in
-registration order regardless of the order they finished, and MUST let
-every task finish before re-raising the first exception any of them
-raised — a task that fails must not strand its siblings. The backend owns
+A `group` implementation MUST return exactly one value per registered
+task, in registration order regardless of the order they finished, and
+MUST NOT leave a placeholder in that array for a task that produced no
+value — where there is no value, there is an exception to raise. It MUST
+let every task finish before re-raising the first `StandardError` any of
+them raised: a task that fails must not strand its siblings. An
+exception outside `StandardError` (`Interrupt`, `SignalException`) is a
+process-level abort rather than a task failure, so it propagates at once
+and siblings are not awaited. A backend that records task outcomes only
+under `rescue StandardError` returns a `nil` in that array when a task
+is interrupted, and its caller then fails far from the cause. The backend owns
 threading and rendering; **ctree owns how many tasks may work at once**,
 via the `concurrency:` argument to `Ctree::Spinner.with_group`, which
 makes each task wait for a permit inside its own block. A backend
