@@ -537,11 +537,27 @@ directly — `Ctree::Create.run(name:, branch:)`, `Ctree::Delete.run(name:)`,
 `Ctree::List.run(filter:)`, `Ctree::Update.run`, `Ctree::Rebase.run`,
 `Ctree::Free.run`, `Ctree::EnvCmd.run(subcommand)`,
 `Ctree::ComposeConfigCmd.run(subcommand)`,
+`Ctree::Create.run_many(trees:)`,
 `Ctree::Create.rollback(name:, delete_branch:)`, and the `Ctree::Config`
 module functions. `Ctree::CLI.run(argv)` exists for the standalone
 binary; embedders should call the modules and do their own argument
 parsing. Most commands assume `Dir.pwd` is the relevant repo top-level
 and validate it themselves.
+
+`Create.run_many(trees:)` builds several worktrees from one set of
+answers. `trees` is an array of `{name:, branch:}`. It asks everything
+once for the whole batch, then builds `create_concurrency` worktrees at a
+time, and **returns an array of `Create::TreeResult` rather than raising**:
+a batch has no single status to raise, and an embedder needs to know which
+trees came out usable before it decides what to say about the ones that
+did not. Each result carries `name`, `branch`, `status`
+(`:ready`, `:incomplete`, or `:failed`) and a `message` for the latter two.
+`:incomplete` means the worktree exists but some volume copy failed —
+the same condition `run` signals with `ExitStatus(2)`. A `:failed` tree is
+rolled back before `run_many` returns, so it leaves nothing behind. Only
+`git worktree add` is serialized between concurrent builds; within one
+worktree the volumes copy one at a time, since several worktrees copying
+at once is already competing for the same disk.
 
 `Create.rollback` is a non-interactive teardown for a create that failed
 partway. It never calls `Ctree::Prompt` and never raises `Ctree::Error`

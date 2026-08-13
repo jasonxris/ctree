@@ -22,6 +22,14 @@ module Ctree
       keyword_init: true
     )
 
+    TreeResult = Struct.new(
+      :name,
+      :branch,
+      :status,
+      :message,
+      keyword_init: true
+    )
+
     TreePlan = Struct.new(
       :name,
       :branch,
@@ -39,10 +47,52 @@ module Ctree
       build(preparation, tree_plans.first)
     end
 
+    def run_many(trees:)
+      preparation, tree_plans = prepare(trees: trees)
+      concurrency = [preparation.config[:create_concurrency], tree_plans.size].min
+      git_mutex = Mutex.new
+
+      results = Spinner.with_group(
+        "building #{tree_plans.size} worktrees (#{concurrency} at a time)",
+        concurrency: concurrency
+      ) do |register|
+        tree_plans.each do |tree_plan|
+          register.call("#{tree_plan.name} (#{tree_plan.branch})") do |report_progress|
+            begin
+              build(preparation, tree_plan, git_mutex: git_mutex, report_progress: report_progress)
+              TreeResult.new(name: tree_plan.name, branch: tree_plan.branch, status: :ready)
+            rescue ExitStatus
+              TreeResult.new(name: tree_plan.name, branch: tree_plan.branch, status: :incomplete,
+                             message: "created, but some volumes failed to copy")
+            rescue => error
+              TreeResult.new(name: tree_plan.name, branch: tree_plan.branch, status: :failed,
+                             message: error.message)
+            end
+          end
+        end
+      end
+
+      results.each do |result|
+        next unless result.status == :failed
+
+        tree_plan = tree_plans.find { |plan| plan.name == result.name }
+        rollback(name: result.name, delete_branch: !tree_plan.branch_exists)
+      end
+
+      Log.line
+      results.each do |result|
+        case result.status
+        when :ready then Log.info "#{result.name}: ready"
+        when :incomplete then Log.warn_ "#{result.name}: #{result.message}"
+        else Log.warn_ "#{result.name}: failed — #{result.message}"
+        end
+      end
+
+      results
+    end
+
     def prepare(trees:)
-      tree = trees.first
-      name = tree[:name]
-      branch = tree[:branch]
+      Log.die "no worktrees requested" if trees.empty?
 
       source_root = Pathname.pwd
       toplevel_out, _, status = Sh.capture3("git", "-C", source_root.to_s, "rev-parse", "--show-toplevel")
@@ -69,9 +119,14 @@ module Ctree
 
       source_basename = source_root.basename.to_s
       parent_dir = source_root.parent
-      target_path = parent_dir / name
 
-      Log.die "target path already exists: #{target_path}" if target_path.exist?
+      requested = trees.map do |tree|
+        target_path = parent_dir / tree[:name]
+        Log.die "target path already exists: #{target_path}" if target_path.exist?
+        { name: tree[:name], branch: tree[:branch], target_path: target_path }
+      end
+      duplicate = requested.map { |tree| tree[:name] }.tally.find { |_, count| count > 1 }
+      Log.die "worktree '#{duplicate.first}' requested more than once" if duplicate
 
       # === verify source is on master branch ===
 
@@ -129,16 +184,20 @@ module Ctree
         source_project = Naming.sanitize_compose_project_name(source_basename)
         source_project_origin = "from source dir basename (no COMPOSE_PROJECT_NAME in #{env_filename})"
       end
-      target_project = Naming.sanitize_compose_project_name(name)
+      requested.each { |tree| tree[:target_project] = Naming.sanitize_compose_project_name(tree[:name]) }
 
       Log.debug "source project (compose): #{source_project}  [#{source_project_origin}]"
-      Log.debug "target project (compose): #{target_project}"
+      requested.each { |tree| Log.debug "target project (compose): #{tree[:target_project]}" }
       Log.debug "identified source volumes by prefix: #{source_project}_"
 
       # === pre-flight ===
 
-      _, _, status = Sh.capture3("git", "-C", source_root.to_s, "show-ref", "--verify", "--quiet", "refs/heads/#{branch}")
-      branch_exists = status.success?
+      requested.each do |tree|
+        _, _, branch_status = Sh.capture3(
+          "git", "-C", source_root.to_s, "show-ref", "--verify", "--quiet", "refs/heads/#{tree[:branch]}"
+        )
+        tree[:branch_exists] = branch_status.success?
+      end
 
       _, _, status = Sh.capture3("docker", "info")
       Log.die "docker not available (is the daemon running?)" unless status.success?
@@ -174,19 +233,23 @@ module Ctree
       source_volumes = vols_out.lines.map(&:strip).reject(&:empty?).select { |v| v =~ prefix_re }
       pre_existing_vols = vols_out.lines.map(&:strip).freeze
 
-      copy_candidates = source_volumes.reject do |src_vol|
-        suffix = src_vol.sub(prefix_re, "")
-        share_volumes.include?(suffix) || empty_volumes.include?(suffix) ||
-          pre_existing_vols.include?("#{target_project}_#{suffix}")
-      end
+      copy_candidates = requested.flat_map { |tree|
+        source_volumes.reject do |src_vol|
+          suffix = src_vol.sub(prefix_re, "")
+          share_volumes.include?(suffix) || empty_volumes.include?(suffix) ||
+            pre_existing_vols.include?("#{tree[:target_project]}_#{suffix}")
+        end
+      }.uniq
 
       unless copy_candidates.empty?
-        needed_bytes, available_bytes = Spinner.with_spinner("checking free space") do
+        measured_bytes, available_bytes = Spinner.with_spinner("checking free space") do
           Volume.copy_budget(copy_candidates)
         end
+        needed_bytes = measured_bytes && measured_bytes * requested.size
         if needed_bytes && available_bytes < needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
           required = needed_bytes + Volume::COPY_FREE_SPACE_FLOOR
-          Log.warn_ "copying #{Sizes.human(needed_bytes)} of volumes needs #{Sizes.human(required)} free"
+          across = (requested.size == 1) ? "" : " across #{requested.size} worktrees"
+          Log.warn_ "copying #{Sizes.human(needed_bytes)} of volumes#{across} needs #{Sizes.human(required)} free"
           Log.warn_ "docker has #{Sizes.human(available_bytes)} available"
           Log.warn_ "continuing would exhaust the disk and crash containers in every running stack"
           Log.die "not enough free space; reclaim space (e.g. `docker builder prune -af`) and retry"
@@ -235,20 +298,24 @@ module Ctree
         end
       end
 
-      rebase_onto_master = false
-      if branch_exists
+      requested.each do |tree|
+        tree[:rebase_onto_master] = false
+        next unless tree[:branch_exists]
+
         behind_out, _, behind_st = Sh.capture3(
-          "git", "-C", source_root.to_s, "rev-list", "--count", "#{branch}..master"
+          "git", "-C", source_root.to_s, "rev-list", "--count", "#{tree[:branch]}..master"
         )
         behind = behind_st.success? ? behind_out.strip.to_i : 0
-        if behind > 0
-          Log.warn_ "branch '#{branch}' is #{behind} commit(s) behind master"
-          Log.warn_ "its lockfiles may not match the replicated gem/package"
-          Log.warn_ "volumes, which can prevent the stack from booting"
-          raw = Prompt.read_line("rebase '#{branch}' onto master now? [Y/n]: ")
-          answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
-          rebase_onto_master = answer.empty? || answer == "y" || answer == "yes"
-          Log.info "skipped rebase; run `ctree rebase` from the worktree later if needed" unless rebase_onto_master
+        next unless behind > 0
+
+        Log.warn_ "branch '#{tree[:branch]}' is #{behind} commit(s) behind master"
+        Log.warn_ "its lockfiles may not match the replicated gem/package"
+        Log.warn_ "volumes, which can prevent the stack from booting"
+        raw = Prompt.read_line("rebase '#{tree[:branch]}' onto master now? [Y/n]: ")
+        answer = raw.to_s.gsub(/[\x00-\x1f\x7f]/, "").strip.downcase
+        tree[:rebase_onto_master] = answer.empty? || answer == "y" || answer == "yes"
+        unless tree[:rebase_onto_master]
+          Log.info "skipped rebase; run `ctree rebase` from the worktree later if needed"
         end
       end
 
@@ -271,20 +338,20 @@ module Ctree
           host_domain_env_key: host_domain_env_key,
           env_answers: env_answers
         ),
-        [
+        requested.map do |tree|
           TreePlan.new(
-            name: name,
-            branch: branch,
-            branch_exists: branch_exists,
-            target_project: target_project,
-            target_path: target_path,
-            rebase_onto_master: rebase_onto_master
+            name: tree[:name],
+            branch: tree[:branch],
+            branch_exists: tree[:branch_exists],
+            target_project: tree[:target_project],
+            target_path: tree[:target_path],
+            rebase_onto_master: tree[:rebase_onto_master]
           )
-        ]
+        end
       ]
     end
 
-    def build(preparation, tree_plan)
+    def build(preparation, tree_plan, git_mutex: nil, report_progress: nil)
       source_root = preparation.source_root
       config = preparation.config
       share_volumes = preparation.share_volumes
@@ -324,7 +391,11 @@ module Ctree
       else
         ["worktree", "add", "--no-checkout", "-b", branch, target_path.to_s]
       end
-      _, wt_err, wt_st = Sh.capture3("git", "-C", source_root.to_s, *worktree_args)
+      _, wt_err, wt_st = if git_mutex
+        git_mutex.synchronize { Sh.capture3("git", "-C", source_root.to_s, *worktree_args) }
+      else
+        Sh.capture3("git", "-C", source_root.to_s, *worktree_args)
+      end
       Log.die "git worktree add failed: #{wt_err.strip}" unless wt_st.success?
       Log.debug "created worktree at #{target_path}"
       Log.debug branch_exists ? "checked out existing branch #{branch}" : "checked out new branch #{branch}"
@@ -668,14 +739,21 @@ module Ctree
       end
 
       unless copy_targets.empty?
-        copy_concurrency = [config[:volume_copy_concurrency], copy_targets.size].min
-        outcomes = Spinner.with_group(
-          "copying #{copy_targets.size} volumes (#{copy_concurrency} at a time)",
-          concurrency: copy_concurrency
-        ) do |register|
-          copy_targets.each do |src_vol, tgt_vol|
-            register.call("copying #{src_vol} -> #{tgt_vol}") do |report_progress|
-              Volume.copy(src_vol, tgt_vol, report_progress)
+        outcomes = if report_progress
+          copy_targets.each_with_index.map do |(src_vol, tgt_vol), index|
+            report_progress.call((index * 100) / copy_targets.size)
+            Volume.copy(src_vol, tgt_vol, ->(_percent) {})
+          end
+        else
+          copy_concurrency = [config[:volume_copy_concurrency], copy_targets.size].min
+          Spinner.with_group(
+            "copying #{copy_targets.size} volumes (#{copy_concurrency} at a time)",
+            concurrency: copy_concurrency
+          ) do |register|
+            copy_targets.each do |src_vol, tgt_vol|
+              register.call("copying #{src_vol} -> #{tgt_vol}") do |volume_progress|
+                Volume.copy(src_vol, tgt_vol, volume_progress)
+              end
             end
           end
         end
