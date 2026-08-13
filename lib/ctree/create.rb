@@ -62,7 +62,7 @@ module Ctree
           register.call("#{tree_plan.name} (#{tree_plan.branch})") do |report_progress|
             begin
               build(preparation, tree_plan, git_mutex: git_mutex, report_progress: report_progress,
-                                            copy_semaphore: copy_semaphore)
+                                            copy_semaphore: copy_semaphore, tree_label: tree_plan.name)
               TreeResult.new(name: tree_plan.name, branch: tree_plan.branch, status: :ready)
             rescue ExitStatus
               TreeResult.new(name: tree_plan.name, branch: tree_plan.branch, status: :incomplete,
@@ -354,7 +354,8 @@ module Ctree
       ]
     end
 
-    def build(preparation, tree_plan, git_mutex: nil, report_progress: nil, copy_semaphore:)
+    def build(preparation, tree_plan, git_mutex: nil, report_progress: nil, copy_semaphore:, tree_label: nil)
+      prefix = tree_label ? "#{tree_label}: " : ""
       source_root = preparation.source_root
       config = preparation.config
       share_volumes = preparation.share_volumes
@@ -400,16 +401,16 @@ module Ctree
         Sh.capture3("git", "-C", source_root.to_s, *worktree_args)
       end
       Log.die "git worktree add failed: #{wt_err.strip}" unless wt_st.success?
-      Log.debug "created worktree at #{target_path}"
-      Log.debug branch_exists ? "checked out existing branch #{branch}" : "checked out new branch #{branch}"
-      Log.info "created worktree #{name} (branch: #{branch}) from #{source_basename}"
+      Log.debug "#{prefix}created worktree at #{target_path}"
+      Log.debug prefix + (branch_exists ? "checked out existing branch #{branch}" : "checked out new branch #{branch}")
+      Log.info "#{prefix}created worktree #{name} (branch: #{branch}) from #{source_basename}"
 
       items = Dir.glob(File.join(source_root.to_s, "*"), File::FNM_DOTMATCH)
                  .reject { |p| %w[. .. .git].include?(File.basename(p)) }
       excluded = []
       if exclude.any?
         items, excluded = items.partition { |p| !exclude.include?(File.basename(p)) }
-        excluded.each { |p| Log.debug "skipped #{File.basename(p)} (exclude)" }
+        excluded.each { |p| Log.debug "#{prefix}skipped #{File.basename(p)} (exclude)" }
       end
       total = items.size
       failed_items = []
@@ -417,7 +418,7 @@ module Ctree
       # On non-TTY the spinner doesn't run, so log the start explicitly.
       # On TTY the spinner itself is the start indicator — skip the static line
       # to avoid showing both "copying source content" and the spinner line.
-      Log.debug "copying source content" unless $stdout.tty?
+      Log.debug "#{prefix}copying source content" unless $stdout.tty?
 
       done_count = 0
       clone_start = Time.now
@@ -431,7 +432,7 @@ module Ctree
         source_size_bytes = out.lines.sum { |l| l.split("\t").first.to_i } * 1024 if st.success?
       end
 
-      Spinner.with_progress("copying source content") do |report_progress|
+      Spinner.with_progress("#{prefix}copying source content") do |report_progress|
         items.each do |src_child|
           base = File.basename(src_child)
           tgt_child = (target_path / base).to_s
@@ -466,8 +467,8 @@ module Ctree
 
       size_str = source_size_bytes ? "#{Sizes.human(source_size_bytes)} in " : ""
       excl_note = excluded.any? ? ", #{excluded.size} excluded" : ""
-      Log.info "copied source content (#{size_str}#{clone_elapsed}s#{excl_note})"
-      failed_items.each { |b| Log.warn_ "failed to clone #{b}" }
+      Log.info "#{prefix}copied source content (#{size_str}#{clone_elapsed}s#{excl_note})"
+      failed_items.each { |b| Log.warn_ "#{prefix}failed to clone #{b}" }
 
       # Sync the index, restore tracked files, and remove stale untracked files.
       #
@@ -485,27 +486,27 @@ module Ctree
       # etc.) are untouched by git checkout and git clean -fd, so the source
       # content ctree copied for those paths is preserved.
       sync_start = Time.now
-      _, _, rst = Spinner.with_spinner("syncing git index") do
+      _, _, rst = Spinner.with_spinner("#{prefix}syncing git index") do
         Sh.capture3("git", "-C", target_path.to_s, "reset", "HEAD")
       end
       if rst.success?
-        _, co_err, co_st = Spinner.with_spinner("restoring tracked files to branch HEAD") do
+        _, co_err, co_st = Spinner.with_spinner("#{prefix}restoring tracked files to branch HEAD") do
           Sh.capture3("git", "-C", target_path.to_s, "checkout", "HEAD", "--", ".")
         end
         if co_st.success?
-          _, cl_err, cl_st = Spinner.with_spinner("removing source-only untracked files") do
+          _, cl_err, cl_st = Spinner.with_spinner("#{prefix}removing source-only untracked files") do
             Sh.capture3("git", "-C", target_path.to_s, "clean", "-fd")
           end
           if cl_st.success?
-            Log.info "synced git index and working tree (#{(Time.now - sync_start).to_i}s)"
+            Log.info "#{prefix}synced git index and working tree (#{(Time.now - sync_start).to_i}s)"
           else
-            Log.warn_ "git clean -fd failed: #{cl_err.strip}; git status may show untracked files"
+            Log.warn_ "#{prefix}git clean -fd failed: #{cl_err.strip}; git status may show untracked files"
           end
         else
-          Log.warn_ "git checkout HEAD failed: #{co_err.strip}; git status may show unexpected changes"
+          Log.warn_ "#{prefix}git checkout HEAD failed: #{co_err.strip}; git status may show unexpected changes"
         end
       else
-        Log.warn_ "git reset HEAD returned non-zero; git status may show unexpected changes"
+        Log.warn_ "#{prefix}git reset HEAD returned non-zero; git status may show unexpected changes"
       end
 
       config[:update].each do |rel|
@@ -515,13 +516,13 @@ module Ctree
           if src.directory?
             FileUtils.mkdir_p(tgt.to_s)
             FileUtils.cp_r(src.children.map(&:to_s), tgt.to_s)
-            Log.debug "copied #{rel}/ from source (update)"
+            Log.debug "#{prefix}copied #{rel}/ from source (update)"
           elsif src.file?
             FileUtils.cp(src.to_s, tgt.to_s)
-            Log.debug "copied #{rel} from source (update)"
+            Log.debug "#{prefix}copied #{rel} from source (update)"
           end
         rescue => e
-          Log.warn_ "update: failed to copy #{rel}: #{e.message}"
+          Log.warn_ "#{prefix}update: failed to copy #{rel}: #{e.message}"
         end
       end
 
@@ -534,14 +535,14 @@ module Ctree
       # resolve images.
 
       tagged = Images.tag_to_target(source_project, target_project)
-      Log.info "tagged #{tagged.size} docker images" if tagged.any? && !Log.debug?
+      Log.info "#{prefix}tagged #{tagged.size} docker images" if tagged.any? && !Log.debug?
 
       # === replicate volumes ===
 
       volume_results = []
 
       if source_volumes.empty?
-        Log.debug "no source volumes found with prefix '#{source_project}_'"
+        Log.debug "#{prefix}no source volumes found with prefix '#{source_project}_'"
       end
 
       # Rewrite override.yml to mark shared (cache) volumes as external BEFORE
@@ -553,9 +554,9 @@ module Ctree
 
       if share_volumes.any?
         if override_rel.empty? || tgt_override.nil?
-          Log.warn_ "compose_override_file not configured; shared volumes will not be externalized: #{share_volumes.join(", ")}"
+          Log.warn_ "#{prefix}compose_override_file not configured; shared volumes will not be externalized: #{share_volumes.join(", ")}"
         elsif !tgt_override.file?
-          Log.warn_ "#{override_rel} not found in worktree; shared volumes will not be externalized: #{share_volumes.join(", ")}"
+          Log.warn_ "#{prefix}#{override_rel} not found in worktree; shared volumes will not be externalized: #{share_volumes.join(", ")}"
         else
           shared_keys = []
           begin
@@ -593,7 +594,7 @@ module Ctree
               share_volumes.each do |suffix|
                 src_name = "#{source_project}_#{suffix}"
                 unless source_volumes.include?(src_name)
-                  Log.warn_ "source volume #{src_name} not found; #{suffix} will not be shared with source"
+                  Log.warn_ "#{prefix}source volume #{src_name} not found; #{suffix} will not be shared with source"
                   next
                 end
 
@@ -611,20 +612,20 @@ module Ctree
               if shared_keys.any?
                 File.write(tgt_override.to_s, stream.to_yaml)
                 externalized_suffixes = shared_keys
-                shared_keys.each { |k| Log.debug "shared #{k} -> #{source_project}_#{k}" }
+                shared_keys.each { |k| Log.debug "#{prefix}shared #{k} -> #{source_project}_#{k}" }
                 if Log.debug?
-                  Log.debug "added shared volumes to #{File.basename(tgt_override.to_s)}"
+                  Log.debug "#{prefix}added shared volumes to #{File.basename(tgt_override.to_s)}"
                 else
-                  Log.info "updated #{File.basename(tgt_override.to_s)}"
+                  Log.info "#{prefix}updated #{File.basename(tgt_override.to_s)}"
                 end
               else
-                Log.warn_ "no source volumes found for share_volumes; worktree will use its own isolated copies"
+                Log.warn_ "#{prefix}no source volumes found for share_volumes; worktree will use its own isolated copies"
               end
             else
-              Log.warn_ "#{tgt_override}: 'volumes' is not a mapping; skipping shared volume override"
+              Log.warn_ "#{prefix}#{tgt_override}: 'volumes' is not a mapping; skipping shared volume override"
             end
           rescue Psych::SyntaxError => e
-            Log.warn_ "could not parse #{tgt_override}: #{e.message}; skipping shared volume override"
+            Log.warn_ "#{prefix}could not parse #{tgt_override}: #{e.message}; skipping shared volume override"
           end
         end
       end
@@ -643,7 +644,7 @@ module Ctree
         parts = current_cf.split(":").map(&:strip).reject(&:empty?)
         unless parts.include?(override_file)
           cf_action = EnvFile.upsert(tgt_env_path.to_s, "COMPOSE_FILE", (parts + [override_file]).join(":"))
-          Log.debug "appended #{override_file} to COMPOSE_FILE (#{cf_action}) in #{tgt_env_path}"
+          Log.debug "#{prefix}appended #{override_file} to COMPOSE_FILE (#{cf_action}) in #{tgt_env_path}"
         end
       end
 
@@ -667,9 +668,9 @@ module Ctree
       services = services_st.success? ? services_out.lines.map(&:strip).reject(&:empty?) : []
 
       no_start_errors = []
-      Spinner.with_spinner("creating target volumes") do
+      Spinner.with_spinner("#{prefix}creating target volumes") do
         if services.empty?
-          Log.warn_ "could not list compose services (#{services_err.strip}); falling back to single up --no-start"
+          Log.warn_ "#{prefix}could not list compose services (#{services_err.strip}); falling back to single up --no-start"
           _, err, st = Sh.capture3(
             "docker", "compose",
             "--project-directory", target_path.to_s,
@@ -689,7 +690,7 @@ module Ctree
           end
         end
       end
-      Log.warn_ "docker compose up --no-start: #{no_start_errors.join("; ")}" unless no_start_errors.empty?
+      Log.warn_ "#{prefix}docker compose up --no-start: #{no_start_errors.join("; ")}" unless no_start_errors.empty?
 
       _, down_error, down_status = Sh.capture3(
         "docker", "compose",
@@ -697,17 +698,17 @@ module Ctree
         "--project-name", target_project,
         "down"
       )
-      Log.warn_ "docker compose down: #{down_error.strip}" unless down_status.success?
+      Log.warn_ "#{prefix}docker compose down: #{down_error.strip}" unless down_status.success?
 
       empty_count = 0
       source_volumes.each do |src_vol|
         suffix = src_vol.sub(prefix_re, "")
         tgt_vol = "#{target_project}_#{suffix}"
         next unless empty_volumes.include?(suffix)
-        Log.debug "created #{tgt_vol} (empty volume)"
+        Log.debug "#{prefix}created #{tgt_vol} (empty volume)"
         empty_count += 1
       end
-      Log.info "created #{empty_count} empty volumes" if empty_count > 0 && !Log.debug?
+      Log.info "#{prefix}created #{empty_count} empty volumes" if empty_count > 0 && !Log.debug?
 
       volume_copy_start = Time.now
       volume_copy_bytes = 0
@@ -721,7 +722,7 @@ module Ctree
           if externalized_suffixes.include?(suffix)
             volume_results << [src_vol, tgt_vol, :shared, "shared from source"]
           else
-            Log.debug "skipped copy of #{src_vol} (not shared: no entry in #{override_rel}; worktree will create a fresh volume)"
+            Log.debug "#{prefix}skipped copy of #{src_vol} (not shared: no entry in #{override_rel}; worktree will create a fresh volume)"
             volume_results << [src_vol, tgt_vol, :skipped, "not copied, not shared"]
           end
           next
@@ -733,7 +734,7 @@ module Ctree
         end
 
         if pre_existing_vols.include?(tgt_vol)
-          Log.warn_ "skipping #{tgt_vol} (already exists)"
+          Log.warn_ "#{prefix}skipping #{tgt_vol} (already exists)"
           volume_results << [src_vol, tgt_vol, :skipped, "already exists"]
           next
         end
@@ -747,7 +748,7 @@ module Ctree
         else
           copy_concurrency = [config[:create_concurrency], copy_targets.size].min
           Spinner.with_progress(
-            "copying #{copy_targets.size} volumes (#{copy_concurrency} at a time)"
+            "#{prefix}copying #{copy_targets.size} volumes (#{copy_concurrency} at a time)"
           ) do |copy_progress|
             copy_volumes(copy_targets, copy_semaphore, copy_progress)
           end
@@ -759,7 +760,7 @@ module Ctree
             volume_copy_bytes += vol_bytes.to_i
             volume_results << [src_vol, tgt_vol, :copied, ""]
           else
-            Log.warn_ "copy failed for #{tgt_vol}: #{err.strip}"
+            Log.warn_ "#{prefix}copy failed for #{tgt_vol}: #{err.strip}"
             volume_results << [src_vol, tgt_vol, :failed, "copy failed: #{err.strip}"]
           end
         end
@@ -769,7 +770,7 @@ module Ctree
       if copied_count > 0
         volume_copy_elapsed = (Time.now - volume_copy_start).to_i
         size_note = volume_copy_bytes > 0 ? "#{Sizes.human(volume_copy_bytes)} in " : ""
-        Log.info "copied #{copied_count} volumes (#{size_note}#{volume_copy_elapsed}s)" unless Log.debug?
+        Log.info "#{prefix}copied #{copied_count} volumes (#{size_note}#{volume_copy_elapsed}s)" unless Log.debug?
       end
 
       # === update .env in the new worktree ===
@@ -777,24 +778,24 @@ module Ctree
       # differ per worktree need updating.
 
       unless tgt_env_path.file?
-        Log.info "source has no #{env_filename}; creating one in target"
+        Log.info "#{prefix}source has no #{env_filename}; creating one in target"
       end
 
       cpn_action = EnvFile.upsert(tgt_env_path.to_s, "COMPOSE_PROJECT_NAME", target_project)
-      Log.debug "COMPOSE_PROJECT_NAME=#{target_project} (#{cpn_action}) in #{tgt_env_path}"
+      Log.debug "#{prefix}COMPOSE_PROJECT_NAME=#{target_project} (#{cpn_action}) in #{tgt_env_path}"
 
       host_action = EnvFile.upsert(tgt_env_path.to_s, host_env_key, name)
-      Log.debug "#{host_env_key}=#{name} (#{host_action}) in #{tgt_env_path}"
+      Log.debug "#{prefix}#{host_env_key}=#{name} (#{host_action}) in #{tgt_env_path}"
 
       unless host_name_suffix.empty?
         suffix_action = EnvFile.upsert(tgt_env_path.to_s, "HOST_NAME_SUFFIX", host_name_suffix)
-        Log.debug "HOST_NAME_SUFFIX=#{host_name_suffix} (#{suffix_action}) in #{tgt_env_path}"
+        Log.debug "#{prefix}HOST_NAME_SUFFIX=#{host_name_suffix} (#{suffix_action}) in #{tgt_env_path}"
       end
 
       unless host_domain_env_key.empty? || host_name_suffix.empty?
         domain_val = "#{name}.#{host_name_suffix}"
         domain_action = EnvFile.upsert(tgt_env_path.to_s, host_domain_env_key, domain_val)
-        Log.debug "#{host_domain_env_key}=#{domain_val} (#{domain_action}) in #{tgt_env_path}"
+        Log.debug "#{prefix}#{host_domain_env_key}=#{domain_val} (#{domain_action}) in #{tgt_env_path}"
       end
 
       final_env_vars = { host_env_key => name }
@@ -805,28 +806,28 @@ module Ctree
       env_answers.each do |key, value|
         final_env_vars[key] = value
         if value == source_env_vars[key]
-          Log.debug "#{Secrets.pair(key, value)} (kept from source) in #{tgt_env_path}"
+          Log.debug "#{prefix}#{Secrets.pair(key, value)} (kept from source) in #{tgt_env_path}"
         else
           action = EnvFile.upsert(tgt_env_path.to_s, key, value)
-          Log.debug "#{Secrets.pair(key, value)} (#{action}) in #{tgt_env_path}"
+          Log.debug "#{prefix}#{Secrets.pair(key, value)} (#{action}) in #{tgt_env_path}"
         end
       end
 
-      Log.info "updated #{env_filename}" unless Log.debug?
+      Log.info "#{prefix}updated #{env_filename}" unless Log.debug?
 
       # === final report ===
 
       if Log.debug?
-        Log.section("ctree summary") do
-          Log.line "worktree:  #{target_path}"
-          Log.line "branch:    #{branch}#{branch_exists ? " (existing, checked out)" : " (new)"}"
-          Log.line "#{env_filename}:      #{tgt_env_path}"
-          final_env_vars.each { |key, value| Log.line "  #{Secrets.pair(key, value)}" }
-          Log.line "override:  #{override_rel.empty? ? "(none configured)" : override_rel}"
+        Log.section("#{prefix}ctree summary") do
+          Log.line "#{prefix}worktree:  #{target_path}"
+          Log.line "#{prefix}branch:    #{branch}#{branch_exists ? " (existing, checked out)" : " (new)"}"
+          Log.line "#{prefix}#{env_filename}:      #{tgt_env_path}"
+          final_env_vars.each { |key, value| Log.line "#{prefix}  #{Secrets.pair(key, value)}" }
+          Log.line "#{prefix}override:  #{override_rel.empty? ? "(none configured)" : override_rel}"
           Log.line
 
           if volume_results.any?
-            Log.line "volumes:"
+            Log.line "#{prefix}volumes:"
             copied  = volume_results.select { |_, _, st, _| st == :copied || st == :skipped || st == :failed }
             empty   = volume_results.select { |_, _, st, _| st == :empty }
             shared  = volume_results.select { |_, _, st, _| st == :shared }
@@ -838,7 +839,7 @@ module Ctree
                 l = "  [#{st.to_s.ljust(7)}] #{src} -> #{tgt}"
                 msg.to_s.empty? ? l : "#{l} (#{msg})"
               end
-              Log.line line
+              Log.line "#{prefix}#{line}"
             end
             Log.line
           end
@@ -854,14 +855,14 @@ module Ctree
       # which can prevent the stack from booting. The decision was taken during
       # the preflight, before anything was created.
       if rebase_onto_master
-        _, _, rb_st = Spinner.with_spinner("rebasing #{branch} onto master") do
+        _, _, rb_st = Spinner.with_spinner("#{prefix}rebasing #{branch} onto master") do
           Sh.capture3("git", "-C", target_path.to_s, "rebase", "master")
         end
         if rb_st.success?
-          Log.info "rebased #{branch} onto master"
+          Log.info "#{prefix}rebased #{branch} onto master"
         else
           Sh.capture3("git", "-C", target_path.to_s, "rebase", "--abort")
-          Log.warn_ "rebase conflict — aborted; resolve manually with `ctree rebase` from the worktree"
+          Log.warn_ "#{prefix}rebase conflict — aborted; resolve manually with `ctree rebase` from the worktree"
         end
       end
 

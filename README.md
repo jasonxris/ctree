@@ -589,9 +589,16 @@ did not. Each result carries `name`, `branch`, `status`
 `:incomplete` means the worktree exists but some volume copy failed —
 the same condition `run` signals with `ExitStatus(2)`. A `:failed` tree is
 rolled back before `run_many` returns, so it leaves nothing behind. Only
-`git worktree add` is serialized between concurrent builds; within one
-worktree the volumes copy one at a time, since several worktrees copying
-at once is already competing for the same disk.
+`git worktree add` is serialized between concurrent builds; volume copies
+run against a semaphore shared by every tree in the batch, so
+`create_concurrency` bounds them across the whole create rather than
+within one tree.
+
+Every line a tree emits during a batch is prefixed with that tree's name
+(`wt1: copied source content`). Concurrent builds interleave their output
+in the logfile, and an unlabeled line is worthless when three trees are
+writing at once. A single-tree `run` passes no label, so its output is
+unchanged.
 
 `Create.rollback` is a non-interactive teardown for a create that failed
 partway. It never calls `Ctree::Prompt` and never raises `Ctree::Error`

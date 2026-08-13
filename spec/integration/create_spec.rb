@@ -84,6 +84,20 @@ RSpec.describe "Ctree::CLI create" do
            out: File::NULL, err: File::NULL)
   end
 
+  it "leaves a single create's lines unlabeled" do
+    allow(Ctree::Prompt).to receive(:for_env_var_change) { |_key, value| value }
+    allow(Ctree::Prompt).to receive(:read_line).and_return("n")
+    stub_clonefile
+    stub_sh(docker_capture3: docker_stubs)
+
+    expect {
+      Ctree::CLI.run(["create", "wt1", "wt1"])
+    }.to output(/^\[ctree\] copied source content/).to_stdout
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force", (@work.parent / "wt1").to_s,
+           out: File::NULL, err: File::NULL)
+  end
+
   it "asks nothing per variable when the copy-all answer is accepted" do
     allow(Ctree::Prompt).to receive(:for_env_var_change).and_call_original
     allow(Ctree::Prompt).to receive(:read_line).and_return("")

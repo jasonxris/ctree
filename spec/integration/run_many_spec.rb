@@ -112,6 +112,20 @@ RSpec.describe "Ctree::Create.run_many" do
     cleanup("wt1", "wt2", "wt3", "wt4")
   end
 
+  it "labels the lines each tree emits with that tree's name" do
+    allow(Ctree::Volume).to receive(:copy).and_return([fake_status(true), "", 1024])
+    stub_docker_for(2)
+
+    expect {
+      Ctree::Create.run_many(trees: [
+        { name: "wt1", branch: "wt1" },
+        { name: "wt2", branch: "wt2" }
+      ])
+    }.to output(/wt1: copied source content.*wt2: copied source content/m).to_stdout
+
+    cleanup("wt1", "wt2")
+  end
+
   it "caps volume copies across the whole batch rather than per tree" do
     write_config("create_concurrency: 3\n")
     in_flight = 0
