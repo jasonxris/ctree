@@ -159,7 +159,7 @@ module Ctree
       # worktree name (for domain routing). Keys in config[:skip_env_keys] are
       # also auto-set from source. All others are presented interactively.
       host_env_key = config[:host_name]
-      suffix = config[:host_name_suffix].to_s
+      host_name_suffix = config[:host_name_suffix].to_s
       host_domain_env_key = config[:host_domain_env_key].to_s
       effective_skip_keys = config[:skip_env_keys].reject { |k| k == host_domain_env_key }
       auto_set = (["COMPOSE_PROJECT_NAME", "COMPOSE_FILE", host_env_key, "HOST_NAME_SUFFIX"] +
@@ -617,21 +617,21 @@ module Ctree
       host_action = EnvFile.upsert(tgt_env_path.to_s, host_env_key, name)
       Log.debug "#{host_env_key}=#{name} (#{host_action}) in #{tgt_env_path}"
 
-      unless suffix.empty?
-        suffix_action = EnvFile.upsert(tgt_env_path.to_s, "HOST_NAME_SUFFIX", suffix)
-        Log.debug "HOST_NAME_SUFFIX=#{suffix} (#{suffix_action}) in #{tgt_env_path}"
+      unless host_name_suffix.empty?
+        suffix_action = EnvFile.upsert(tgt_env_path.to_s, "HOST_NAME_SUFFIX", host_name_suffix)
+        Log.debug "HOST_NAME_SUFFIX=#{host_name_suffix} (#{suffix_action}) in #{tgt_env_path}"
       end
 
-      unless host_domain_env_key.empty? || suffix.empty?
-        domain_val = "#{name}.#{suffix}"
+      unless host_domain_env_key.empty? || host_name_suffix.empty?
+        domain_val = "#{name}.#{host_name_suffix}"
         domain_action = EnvFile.upsert(tgt_env_path.to_s, host_domain_env_key, domain_val)
         Log.debug "#{host_domain_env_key}=#{domain_val} (#{domain_action}) in #{tgt_env_path}"
       end
 
       final_env_vars = { host_env_key => name }
-      final_env_vars["HOST_NAME_SUFFIX"] = suffix unless suffix.empty?
-      unless host_domain_env_key.empty? || suffix.empty?
-        final_env_vars[host_domain_env_key] = "#{name}.#{suffix}"
+      final_env_vars["HOST_NAME_SUFFIX"] = host_name_suffix unless host_name_suffix.empty?
+      unless host_domain_env_key.empty? || host_name_suffix.empty?
+        final_env_vars[host_domain_env_key] = "#{name}.#{host_name_suffix}"
       end
       env_answers.each do |key, value|
         final_env_vars[key] = value

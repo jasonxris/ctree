@@ -661,6 +661,29 @@ RSpec.describe "Ctree::CLI create" do
            out: File::NULL, err: File::NULL)
   end
 
+  it "writes the configured host_name_suffix, not a copied volume's name suffix" do
+    FileUtils.mkdir_p((@work / ".ctree").to_s)
+    File.write((@work / ".ctree" / "config.yml").to_s,
+               "host_name_suffix: example.test\nhost_domain_env_key: MY_DOMAIN\n")
+    system("git", "-C", @work.to_s, "add", ".ctree", out: File::NULL, err: File::NULL)
+    system("git", "-C", @work.to_s, "commit", "-q", "--amend", "--no-edit",
+           out: File::NULL, err: File::NULL)
+
+    allow(Ctree::Prompt).to receive(:read_line).and_return("")
+    stub_clonefile
+    allow(Ctree::Volume).to receive(:copy).and_return([fake_status(true), "", 1024])
+    stub_sh(docker_capture3: three_copyable_volumes_stubs)
+
+    Ctree::CLI.run(["create", "wt1", "wt1"])
+
+    env_content = (@work.parent / "wt1" / ".env").read
+    expect(env_content).to include("HOST_NAME_SUFFIX=example.test")
+    expect(env_content).to include("MY_DOMAIN=wt1.example.test")
+
+    system("git", "-C", @work.to_s, "worktree", "remove", "--force",
+           (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
+  end
+
   it "copies at most volume_copy_concurrency volumes at once" do
     FileUtils.mkdir_p((@work / ".ctree").to_s)
     File.write((@work / ".ctree" / "config.yml").to_s, "volume_copy_concurrency: 2\n")
