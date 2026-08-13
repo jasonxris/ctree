@@ -684,9 +684,9 @@ RSpec.describe "Ctree::CLI create" do
            (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
   end
 
-  it "copies at most volume_copy_concurrency volumes at once" do
+  it "copies at most create_concurrency volumes at once" do
     FileUtils.mkdir_p((@work / ".ctree").to_s)
-    File.write((@work / ".ctree" / "config.yml").to_s, "volume_copy_concurrency: 2\n")
+    File.write((@work / ".ctree" / "config.yml").to_s, "create_concurrency: 2\n")
     system("git", "-C", @work.to_s, "add", ".ctree", out: File::NULL, err: File::NULL)
     system("git", "-C", @work.to_s, "commit", "-q", "--amend", "--no-edit",
            out: File::NULL, err: File::NULL)
@@ -706,9 +706,9 @@ RSpec.describe "Ctree::CLI create" do
            (@work.parent / "wt1").to_s, out: File::NULL, err: File::NULL)
   end
 
-  it "copies volumes strictly one at a time when volume_copy_concurrency is 1" do
+  it "copies volumes strictly one at a time when create_concurrency is 1" do
     FileUtils.mkdir_p((@work / ".ctree").to_s)
-    File.write((@work / ".ctree" / "config.yml").to_s, "volume_copy_concurrency: 1\n")
+    File.write((@work / ".ctree" / "config.yml").to_s, "create_concurrency: 1\n")
     system("git", "-C", @work.to_s, "add", ".ctree", out: File::NULL, err: File::NULL)
     system("git", "-C", @work.to_s, "commit", "-q", "--amend", "--no-edit",
            out: File::NULL, err: File::NULL)

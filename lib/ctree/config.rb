@@ -19,7 +19,7 @@ module Ctree
     OPTIONAL_ARRAY_KEYS   = %w[rebase exclude update empty_volumes post_update_hooks].freeze
     STRING_KEYS           = %w[env_filename host_name].freeze
     OPTIONAL_STRING_KEYS  = %w[host_name_suffix compose_override_file host_domain_env_key free_branch_prefix].freeze
-    INTEGER_KEYS          = %w[create_concurrency volume_copy_concurrency].freeze
+    INTEGER_KEYS          = %w[create_concurrency].freeze
     VALID_LOG_LEVELS      = %w[info debug].freeze
     SUPPORTED_KEYS        = (ARRAY_KEYS + OPTIONAL_ARRAY_KEYS + STRING_KEYS + OPTIONAL_STRING_KEYS + INTEGER_KEYS + %w[log_level]).freeze
 

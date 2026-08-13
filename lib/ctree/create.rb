@@ -44,13 +44,15 @@ module Ctree
 
     def run(name:, branch:)
       preparation, tree_plans = prepare(trees: [{ name: name, branch: branch }])
-      build(preparation, tree_plans.first)
+      build(preparation, tree_plans.first,
+            copy_semaphore: Thread::SizedQueue.new(preparation.config[:create_concurrency]))
     end
 
     def run_many(trees:)
       preparation, tree_plans = prepare(trees: trees)
       concurrency = [preparation.config[:create_concurrency], tree_plans.size].min
       git_mutex = Mutex.new
+      copy_semaphore = Thread::SizedQueue.new(preparation.config[:create_concurrency])
 
       results = Spinner.with_group(
         "building #{tree_plans.size} worktrees (#{concurrency} at a time)",
@@ -59,7 +61,8 @@ module Ctree
         tree_plans.each do |tree_plan|
           register.call("#{tree_plan.name} (#{tree_plan.branch})") do |report_progress|
             begin
-              build(preparation, tree_plan, git_mutex: git_mutex, report_progress: report_progress)
+              build(preparation, tree_plan, git_mutex: git_mutex, report_progress: report_progress,
+                                            copy_semaphore: copy_semaphore)
               TreeResult.new(name: tree_plan.name, branch: tree_plan.branch, status: :ready)
             rescue ExitStatus
               TreeResult.new(name: tree_plan.name, branch: tree_plan.branch, status: :incomplete,
@@ -351,7 +354,7 @@ module Ctree
       ]
     end
 
-    def build(preparation, tree_plan, git_mutex: nil, report_progress: nil)
+    def build(preparation, tree_plan, git_mutex: nil, report_progress: nil, copy_semaphore:)
       source_root = preparation.source_root
       config = preparation.config
       share_volumes = preparation.share_volumes
@@ -740,21 +743,13 @@ module Ctree
 
       unless copy_targets.empty?
         outcomes = if report_progress
-          copy_targets.each_with_index.map do |(src_vol, tgt_vol), index|
-            report_progress.call((index * 100) / copy_targets.size)
-            Volume.copy(src_vol, tgt_vol, ->(_percent) {})
-          end
+          copy_volumes(copy_targets, copy_semaphore, report_progress)
         else
-          copy_concurrency = [config[:volume_copy_concurrency], copy_targets.size].min
-          Spinner.with_group(
-            "copying #{copy_targets.size} volumes (#{copy_concurrency} at a time)",
-            concurrency: copy_concurrency
-          ) do |register|
-            copy_targets.each do |src_vol, tgt_vol|
-              register.call("copying #{src_vol} -> #{tgt_vol}") do |volume_progress|
-                Volume.copy(src_vol, tgt_vol, volume_progress)
-              end
-            end
+          copy_concurrency = [config[:create_concurrency], copy_targets.size].min
+          Spinner.with_progress(
+            "copying #{copy_targets.size} volumes (#{copy_concurrency} at a time)"
+          ) do |copy_progress|
+            copy_volumes(copy_targets, copy_semaphore, copy_progress)
           end
         end
 
@@ -871,6 +866,30 @@ module Ctree
       end
 
       raise ExitStatus.new(2) if any_failed
+    end
+
+    def copy_volumes(copy_targets, copy_semaphore, report_progress)
+      outcomes = Array.new(copy_targets.size)
+      completed = 0
+      completed_mutex = Mutex.new
+
+      threads = copy_targets.each_with_index.map do |(src_vol, tgt_vol), index|
+        Thread.new do
+          copy_semaphore.push(:permit)
+          begin
+            outcomes[index] = Volume.copy(src_vol, tgt_vol, ->(_percent) {})
+          ensure
+            copy_semaphore.pop
+          end
+          completed_mutex.synchronize do
+            completed += 1
+            report_progress.call((completed * 100) / copy_targets.size)
+          end
+        end
+      end
+
+      threads.each(&:join)
+      outcomes
     end
 
     def rollback(name:, delete_branch:)

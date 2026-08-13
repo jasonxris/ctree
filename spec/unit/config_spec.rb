@@ -212,37 +212,35 @@ RSpec.describe Ctree::Config do
       end
     end
 
-    it "defaults create_concurrency and volume_copy_concurrency to Integers" do
+    it "defaults create_concurrency to an Integer" do
       Dir.mktmpdir do |dir|
         result = described_class.load(dir)
         expect(result[:create_concurrency]).to eq(2)
-        expect(result[:volume_copy_concurrency]).to eq(4)
       end
     end
 
-    it "repo config overrides one integer key while the other falls back to its default" do
+    it "repo config overrides create_concurrency" do
       Dir.mktmpdir do |dir|
         write_repo_config(dir, "create_concurrency: 5\n")
         result = described_class.load(dir)
         expect(result[:create_concurrency]).to eq(5)
-        expect(result[:volume_copy_concurrency]).to eq(described_class.defaults[:volume_copy_concurrency])
       end
     end
 
     it "normalizes a digit string to an Integer" do
       Dir.mktmpdir do |dir|
-        write_repo_config(dir, "volume_copy_concurrency: \"4\"\n")
+        write_repo_config(dir, "create_concurrency: \"4\"\n")
         result = described_class.load(dir)
-        expect(result[:volume_copy_concurrency]).to eq(4)
+        expect(result[:create_concurrency]).to eq(4)
       end
     end
 
-    it "aborts when volume_copy_concurrency is zero" do
+    it "aborts when create_concurrency is zero" do
       Dir.mktmpdir do |dir|
-        write_repo_config(dir, "volume_copy_concurrency: 0\n")
+        write_repo_config(dir, "create_concurrency: 0\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(Ctree::Error, /invalid "volume_copy_concurrency"/)
+        }.to raise_error(Ctree::Error, /invalid "create_concurrency"/)
       end
     end
 
@@ -255,12 +253,12 @@ RSpec.describe Ctree::Config do
       end
     end
 
-    it "aborts when volume_copy_concurrency is not numeric" do
+    it "aborts when create_concurrency is not numeric" do
       Dir.mktmpdir do |dir|
-        write_repo_config(dir, "volume_copy_concurrency: \"abc\"\n")
+        write_repo_config(dir, "create_concurrency: \"abc\"\n")
         expect {
           described_class.load(dir)
-        }.to raise_error(Ctree::Error, /invalid "volume_copy_concurrency"/)
+        }.to raise_error(Ctree::Error, /invalid "create_concurrency"/)
       end
     end
 

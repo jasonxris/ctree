@@ -99,12 +99,10 @@ post_update_hooks: []
 # Default: "FREE-"
 free_branch_prefix: "FREE-"
 
-# Trees built concurrently when `ctree create` is given several worktrees.
+# The one concurrency cap `ctree create` obeys: at most this many trees are
+# built at once, and at most this many volume copies run at once across the
+# whole create, however many trees are in flight.
 create_concurrency: 2
-
-# Volumes copied concurrently within one tree. Applies to single-tree
-# creates too. Set to 1 for sequential, one-volume-at-a-time output.
-volume_copy_concurrency: 4
 
 # Log verbosity during `ctree create`. 'info' shows one summary line per
 # phase (default). 'debug' shows every per-item action — useful when

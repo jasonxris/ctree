@@ -92,10 +92,16 @@ RSpec.describe "Ctree::Create.run_many" do
     in_flight = 0
     peak = 0
     tracker = Mutex.new
-    allow(Ctree::Volume).to receive(:copy) do
+    allow(Ctree::Create).to receive(:build).and_wrap_original do |original, *args, **kwargs|
       tracker.synchronize { in_flight += 1; peak = [peak, in_flight].max }
+      begin
+        original.call(*args, **kwargs)
+      ensure
+        tracker.synchronize { in_flight -= 1 }
+      end
+    end
+    allow(Ctree::Volume).to receive(:copy) do
       sleep 0.05
-      tracker.synchronize { in_flight -= 1 }
       [fake_status(true), "", 1024]
     end
     stub_docker_for(4)
@@ -104,6 +110,28 @@ RSpec.describe "Ctree::Create.run_many" do
 
     expect(peak).to eq(2)
     cleanup("wt1", "wt2", "wt3", "wt4")
+  end
+
+  it "caps volume copies across the whole batch rather than per tree" do
+    write_config("create_concurrency: 3\n")
+    in_flight = 0
+    peak = 0
+    tracker = Mutex.new
+    allow(Ctree::Volume).to receive(:copy) do
+      tracker.synchronize { in_flight += 1; peak = [peak, in_flight].max }
+      sleep 0.05
+      tracker.synchronize { in_flight -= 1 }
+      [fake_status(true), "", 1024]
+    end
+    stub_docker_for(2, source_volumes: "src_data\nsrc_logs\nsrc_cache\n")
+
+    Ctree::Create.run_many(trees: [
+      { name: "wt1", branch: "wt1" },
+      { name: "wt2", branch: "wt2" }
+    ])
+
+    expect(peak).to eq(3)
+    cleanup("wt1", "wt2")
   end
 
   it "lets healthy worktrees finish when one fails, and rolls the failure back" do

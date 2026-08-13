@@ -103,7 +103,7 @@ worktree already uses. Values for secret-looking keys are never printed —
 see [Secret values](#secret-values).
 
 After the cloning, docker volumes are replicated under the new compose
-prefix, `volume_copy_concurrency` at a time, and a tailored `.env` is
+prefix, `create_concurrency` at a time, and a tailored `.env` is
 written with `COMPOSE_PROJECT_NAME` plus the answers collected up front.
 
 #### Free space preflight
@@ -423,21 +423,55 @@ are two layers:
 # skip_env_keys:
 #   - SOME_KEY
 
-# How many worktrees `create` builds at once when given several, and how
-# many volumes it copies at once within one worktree. Positive integers;
-# a digit string works too. Defaults 2 and 4.
+# The one concurrency cap `create` obeys, for both trees and volume
+# copies. A positive integer; a digit string works too. Default 2.
 # Example:
 # create_concurrency: 2
-# volume_copy_concurrency: 4
 ```
 
-`volume_copy_concurrency: 1` copies volumes one at a time, which is the
-setting to reach for when you want a single readable progress line per
-volume, or when the machine is short enough on I/O that parallel copies
-only slow each other down. Both keys are worth measuring rather than
-guessing at: every copy in a `create` reads from the same source volumes
-and writes to the same Docker disk, so raising them buys less than the
-multiple suggests.
+`create_concurrency` is one number spent on two pools: at most that many
+trees are built at once, and at most that many volume copies run at once
+across the whole `create`, no matter how many trees are in flight. The
+two pools are separate on purpose. A single shared pool would deadlock —
+N trees would each hold a permit and none would be left for the copies
+they are waiting on.
+
+It is worth measuring rather than guessing at. Every copy in a `create`
+reads from the same source volumes and writes to the same Docker disk,
+so raising the cap buys less than the multiple suggests.
+
+#### How this cap got here
+
+Worth recording, because the shape that looks obvious is the one that
+did not work.
+
+The first version had **two** independent caps: `create_concurrency` for
+trees and `volume_copy_concurrency` for volumes within one tree. It was
+never really exercised. A batch always passed a progress callback down
+into the per-tree build, and the presence of that callback silently
+switched volume copying to a sequential loop — so a batch never used the
+inner cap at all, and the *only* code path that did was a single-tree
+create. A single create was more parallel per tree than a batch was.
+
+The obvious fix — one flat global group, every tree's copies registered
+as a separate line — was measured and rejected. It renders correctly (39
+lines for 3 trees, no corruption), but copy targets are not known until
+each tree has finished `compose up --no-start`, so registering them all
+in one group needs a barrier across trees and a split of the build
+method around it. Too much surgery for a rendering preference.
+
+What is here now: copies within a tree run concurrently against a
+semaphore **shared by every tree in the batch**, so one number bounds
+the whole create and a single tree can use the whole budget when it is
+the only one copying. Trees no longer finish in lockstep — a tree that
+gets permits early finishes well before its siblings. That is a
+deliberate trade for throughput over a tidy simultaneous finish.
+
+The one real measurement so far is uncontrolled: a 3-tree batch moved
+9.1GB per tree at roughly 36 MB/s per stream and roughly 72 MB/s for two
+streams together, which says the Docker disk was not saturated at two
+streams and more streams plausibly still help. The default of 2 is
+conservative; anything higher is still a guess until someone times it.
 
 ### How to configure
 
