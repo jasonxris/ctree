@@ -73,6 +73,16 @@ module Ctree
       end
     end
 
+    def managed_worktree_paths(source_root)
+      env_filename = Config.load(source_root)[:env_filename]
+      raw, _, status = Sh.capture3("git", "-C", source_root.to_s, "worktree", "list", "--porcelain")
+      Log.die "git worktree list failed" unless status.success?
+
+      parse_worktree_porcelain(raw).reject { |entry| entry[:source] }.map { |entry| Pathname.new(entry[:path]) }.select do |path|
+        !EnvFile.parse(path / env_filename)["COMPOSE_PROJECT_NAME"].to_s.empty?
+      end
+    end
+
     def parse_worktree_porcelain(raw)
       entries = []
       current = {}

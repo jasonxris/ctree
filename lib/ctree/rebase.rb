@@ -179,6 +179,6 @@ module Ctree
           .map { |l| l.split("=", 2).last.strip }
     end
 
-    private_class_method :working_tree_clean?, :embedded_repos, :load_submodule_paths
+    private_class_method :working_tree_clean?, :load_submodule_paths
   end
 end

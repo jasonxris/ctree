@@ -60,7 +60,7 @@ contains the `ctree` executable.
 ## Usage
 
 Most commands run from the source repository.
-`update`, `rebase`, `free`, `env`, and `compose-config` run from inside a worktree.
+`update`, `rebase`, `free`, `reset`, `env`, and `compose-config` run from inside a worktree.
 
 ```bash
 ctree create <worktree_name> <branch_name>
@@ -70,6 +70,7 @@ ctree switch <worktree_name>
 ctree rebase
 ctree update
 ctree free
+ctree reset
 ctree env    [list | check | fix]
 ctree version
 ctree domain [list | [add | delete] <tld>]
@@ -220,6 +221,27 @@ placeholder branch so it can be reused. ctree:
 5. Rebases the checked-out branch onto the source repo's `master` (skipped
    automatically if already up to date). Aborts and reports on conflict —
    resolve manually and re-run `ctree rebase` from the worktree.
+
+### reset
+
+Run **from inside a worktree** (no arguments). Makes the worktree match the
+source repo, for worktrees that exist to look at whatever the source has
+checked out rather than to hold their own work. ctree:
+
+1. Prompts for confirmation (default **no**).
+2. If the worktree's current commit is contained by no branch, remote
+   branch, or tag, saves it to a `backup/<worktree_name>-<commit>` branch so
+   it is not left reachable only from the reflog.
+3. Checks out the source repo's current commit, detached, discarding
+   uncommitted changes to tracked files.
+4. Removes untracked files and directories the source repo does not also
+   have. Untracked paths present in both (generated directories, mount
+   points) stay, and ignored files are never touched.
+5. Repeats steps 2–4 for each embedded git repo found under the `rebase`
+   directories, matching it to its source counterpart's current commit.
+
+All operations are local — no network calls. A failure in an embedded repo
+is warned and the rest continue; the command then exits 2.
 
 ### env
 
@@ -569,7 +591,9 @@ ctree is designed to be embedded by another CLI (for example an
 **Entry points.** `require "ctree"`, then call the command modules
 directly — `Ctree::Create.run(name:, branch:)`, `Ctree::Delete.run(name:)`,
 `Ctree::List.run(filter:)`, `Ctree::Update.run`, `Ctree::Rebase.run`,
-`Ctree::Free.run`, `Ctree::EnvCmd.run(subcommand)`,
+`Ctree::Free.run`, `Ctree::Reset.run(confirm:)`,
+`Ctree::List.managed_worktree_paths(source_root)`,
+`Ctree::EnvCmd.run(subcommand)`,
 `Ctree::ComposeConfigCmd.run(subcommand)`,
 `Ctree::Create.run_many(trees:)`,
 `Ctree::Create.rollback(name:, delete_branch:)`, and the `Ctree::Config`
@@ -619,7 +643,7 @@ Failures with a message raise `Ctree::Error` (carrying `exit_code`);
 silent non-zero status exits (check discrepancies, partial failures)
 raise `Ctree::ExitStatus`; success returns normally. `bin/ctree` is the
 sole process-exit site. User-declined confirmations vary by command:
-`update`, `rebase`, and `delete` print a line and raise `ExitStatus`
+`update`, `rebase`, `reset`, and `delete` print a line and raise `ExitStatus`
 with code 1, `create`'s stop-source-containers decline raises
 `Ctree::Error` (a message-bearing failure), while `free` and the
 config-reset/removal prompts treat a decline as a no-op and return

@@ -12,6 +12,7 @@ module Ctree
       ["rebase", "", "rebase the worktree onto the source repo's master"],
       ["update", "", "sync images, volumes, and files from source"],
       ["free", "", "reset the worktree to a free placeholder branch"],
+      ["reset", "", "reset the worktree to the source repo's commit"],
       ["env", "[list | check | fix]", "manage the worktree's .env against the source"],
       ["version", "", "print the installed ctree version"],
       ["domain", "[list | [add | delete] <tld>]", "configure local DNS resolution for a TLD (macOS only)"],
@@ -38,7 +39,7 @@ module Ctree
       #{COMMANDS_TABLE}
 
       Most commands run from the top of the source repository.
-      `update`, `rebase`, `free`, `env`, and `compose-config` run from inside a worktree.
+      `update`, `rebase`, `free`, `reset`, `env`, and `compose-config` run from inside a worktree.
 
       Use "ctree help <command>" for more information about a command.
     USAGE
@@ -111,6 +112,22 @@ module Ctree
         "FREE-"). If all are occupied, creates the next sequential one, filling gaps
         (FREE-001 + FREE-003 occupied → creates FREE-002). The prefix is configurable
         via free_branch_prefix in .ctree/config.yml.
+      HELP
+      "reset" => <<~HELP,
+        Usage:
+          ctree reset
+
+        Run from inside a worktree. Makes the worktree match the source repo:
+        1. Checks out the source repo's current commit, detached, discarding
+           uncommitted changes to tracked files.
+        2. Removes untracked files the source repo does not also have.
+        3. Does the same for each embedded git repo (directories listed under
+           `rebase` in .ctree/config.yml), matching its source counterpart.
+
+        A commit that no branch, remote branch, or tag contains is saved to a
+        backup/<worktree_name>-<commit> branch before it is left behind. Ignored
+        files are never touched. Asks for confirmation first. All operations are
+        local — no network calls.
       HELP
       "env" => <<~HELP,
         Usage:
@@ -225,6 +242,9 @@ module Ctree
       when "free"
         usage_and_exit unless argv.length == 1
         Free.run
+      when "reset"
+        usage_and_exit unless argv.length == 1
+        Reset.run
       when "env"
         subcommand = argv[1]
         usage_and_exit unless %w[list check fix].include?(subcommand)
